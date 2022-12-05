@@ -1,0 +1,216 @@
+import torch
+import numpy as np
+import unittest
+from .base_test_case import BaseTestCase
+
+torch.random.manual_seed(0)
+value_shape = [6, 30825, 8, 32]
+sampling_locations_shape = [6, 40000, 8, 4, 8, 2]
+attention_weights_shape = sampling_locations_shape[:-1]
+spatial_shapes_shape = [4, 2]
+
+output_shape = attention_weights_shape[:2] + [value_shape[-1] * value_shape[-2]]
+
+
+class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func_name = args[0]
+
+    @classmethod
+    def setUpClass(cls):
+        torch.random.manual_seed(0)
+        print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
+        cls.input_data = dict(
+            value_spatial_shapes=torch.tensor(
+                [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
+            ),
+            value=torch.randn(value_shape, device="cuda"),
+            sampling_locations=torch.randn(sampling_locations_shape, device="cuda"),
+            attention_weights=torch.randn(attention_weights_shape, device="cuda"),
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls.input_data
+        torch.cuda.empty_cache()
+
+    def setUp(self):
+        params = [dict()]
+
+        BaseTestCase.__init__(
+            self,
+            "multi_scale_deformable_attn",
+            input_shapes={
+                "value": value_shape,
+                "value_spatial_shapes": spatial_shapes_shape,
+                "sampling_locations": sampling_locations_shape,
+                "attention_weights": attention_weights_shape,
+            },
+            output_shapes={"output": output_shape},
+            params=params,
+            device="cuda",
+            func_name=self.func_name,
+        )
+        self.buildEngine(opset_version=13)
+
+    def tearDown(self):
+        del self
+        torch.cuda.empty_cache()
+
+    def createInputs(self):
+        f_keys = ["value", "sampling_locations", "attention_weights"]
+        if self.p16:
+            inputs_pth = self.getInputs()
+            self.inputs_pth_fp16 = {
+                key: (val.half() if key in f_keys else val)
+                for key, val in inputs_pth.items()
+            }
+            self.inputs_np_fp16 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_fp16.items()
+            }
+        else:
+            self.inputs_pth_fp32 = self.getInputs()
+            self.inputs_np_fp32 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_fp32.items()
+            }
+
+    def getInputs(self):
+        inputs = {}
+        for key in self.input_shapes:
+            inputs[key] = self.__class__.input_data[key].to(torch.device(self.device))
+        return inputs
+
+    def fp32_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_fp32"], fp16=False)
+            output_trt, t = self.engineForward(dic["engine_fp32"], fp16=False)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
+    def fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_fp16"], fp16=True)
+            output_trt, t = self.engineForward(dic["engine_fp16"], fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
+    def test_fp32(self):
+        self.fp32_case()
+
+    def test_fp16(self):
+        self.fp16_case(3e-2)
+
+
+class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func_name = args[0]
+
+    @classmethod
+    def setUpClass(cls):
+        torch.random.manual_seed(0)
+        print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
+        cls.input_data = dict(
+            value_spatial_shapes=torch.tensor(
+                [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
+            ),
+            value=torch.randn(value_shape, device="cuda"),
+            sampling_locations=torch.randn(sampling_locations_shape, device="cuda"),
+            attention_weights=torch.randn(attention_weights_shape, device="cuda"),
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls.input_data
+        torch.cuda.empty_cache()
+
+    def setUp(self):
+        params = [dict()]
+
+        BaseTestCase.__init__(
+            self,
+            "multi_scale_deformable_attn2",
+            input_shapes={
+                "value": value_shape,
+                "value_spatial_shapes": spatial_shapes_shape,
+                "sampling_locations": sampling_locations_shape,
+                "attention_weights": attention_weights_shape,
+            },
+            output_shapes={"output": output_shape},
+            params=params,
+            device="cuda",
+            func_name=self.func_name,
+        )
+        self.buildEngine(opset_version=13)
+
+    def tearDown(self):
+        del self
+        torch.cuda.empty_cache()
+
+    def createInputs(self):
+        f_keys = ["value", "sampling_locations", "attention_weights"]
+        if self.p16:
+            inputs_pth = self.getInputs()
+            self.inputs_pth_fp16 = {
+                key: (val.half() if key in f_keys else val)
+                for key, val in inputs_pth.items()
+            }
+            self.inputs_np_fp16 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_fp16.items()
+            }
+        else:
+            self.inputs_pth_fp32 = self.getInputs()
+            self.inputs_np_fp32 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_fp32.items()
+            }
+
+    def getInputs(self):
+        inputs = {}
+        for key in self.input_shapes:
+            inputs[key] = self.__class__.input_data[key].to(torch.device(self.device))
+        return inputs
+
+    def fp32_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_fp32"], fp16=False)
+            output_trt, t = self.engineForward(dic["engine_fp32"], fp16=False)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
+    def fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_fp16"], fp16=True)
+            output_trt, t = self.engineForward(dic["engine_fp16"], fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
+    def test_fp32(self):
+        self.fp32_case()
+
+    def test_fp16(self):
+        self.fp16_case(3e-2)
