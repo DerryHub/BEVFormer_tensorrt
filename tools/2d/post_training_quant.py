@@ -9,7 +9,7 @@ from mmdet.datasets import build_dataloader, build_dataset
 import sys
 
 sys.path.append(".")
-from lightweight.quantization import calibrator
+from det2trt.quantization import calibrator
 
 
 def parse_args():

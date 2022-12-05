@@ -3,8 +3,8 @@ import unittest
 import sys
 
 sys.path.append(".")
-import lightweight
-from lightweight.models.utils.test_trt_ops import *
+import det2trt
+from det2trt.models.utils.test_trt_ops import *
 
 
 if __name__ == "__main__":

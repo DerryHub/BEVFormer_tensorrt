@@ -21,4 +21,4 @@ opencv_num_threads = 0
 # set multi-process start method as `fork` to speed up the training
 mp_start_method = "fork"
 
-plugin = "lightweight"
+plugin = "det2trt"

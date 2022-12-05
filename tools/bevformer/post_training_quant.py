@@ -8,7 +8,7 @@ from mmcv.runner import load_checkpoint
 import sys
 
 sys.path.append(".")
-from lightweight.quantization import calibrator
+from det2trt.quantization import calibrator
 from third_party.bevformer.models.builder import build_model
 from third_party.bevformer.datasets.builder import build_dataloader, build_dataset
 

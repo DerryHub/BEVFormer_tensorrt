@@ -1,4 +1,4 @@
-_base_ = ["yolox_x_8x8_300e_coco.py", "../_base_/lightweight.py"]
+_base_ = ["yolox_x_8x8_300e_coco.py", "../_base_/det2trt.py"]
 
 model = dict(type="YOLOXTRT")
 

@@ -1,6 +1,6 @@
 _base_ = [
     "centernet_resnet18_dcnv2_140e_coco.py",
-    "../_base_/lightweight.py",
+    "../_base_/det2trt.py",
 ]
 
 model = dict(type="CenterNetTRT")

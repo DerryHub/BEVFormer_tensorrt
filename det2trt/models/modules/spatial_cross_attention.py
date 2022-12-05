@@ -13,7 +13,7 @@ from third_party.bevformer import (
     MSDeformableAttention3D,
     MultiScaleDeformableAttnFunction_fp32,
 )
-from lightweight.models.functions import (
+from det2trt.models.functions import (
     multi_scale_deformable_attn,
     multi_scale_deformable_attn2,
 )

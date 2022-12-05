@@ -4,7 +4,7 @@ import numpy as np
 from torchvision.transforms.functional import InterpolationMode
 import torch.nn.functional as F
 from torch.onnx.symbolic_helper import parse_args
-from lightweight.models.functions import grid_sampler, grid_sampler2
+from det2trt.models.functions import grid_sampler, grid_sampler2
 
 
 def _get_inverse_affine_matrix(center, angle, translate, scale, shear):

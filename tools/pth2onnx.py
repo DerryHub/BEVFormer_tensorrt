@@ -6,7 +6,7 @@ from mmcv import Config
 import sys
 
 sys.path.append(".")
-from lightweight.convert import pytorch2onnx
+from det2trt.convert import pytorch2onnx
 
 
 def parse_args():

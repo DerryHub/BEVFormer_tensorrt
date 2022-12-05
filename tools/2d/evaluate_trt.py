@@ -13,7 +13,7 @@ from mmdeploy.backend.tensorrt import load_tensorrt_plugin
 import sys
 
 sys.path.append(".")
-from lightweight.utils.tensorrt import (
+from det2trt.utils.tensorrt import (
     get_logger,
     create_engine_context,
     allocate_buffers,

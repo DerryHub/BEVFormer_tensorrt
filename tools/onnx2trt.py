@@ -6,7 +6,7 @@ from mmdeploy.backend.tensorrt import load_tensorrt_plugin
 import sys
 
 sys.path.append(".")
-from lightweight.convert import build_engine
+from det2trt.convert import build_engine
 
 
 def parse_args():

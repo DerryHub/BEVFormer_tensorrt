@@ -6,7 +6,7 @@ from mmcv.ops.modulated_deform_conv import (
     ModulatedDeformConv2d,
 )
 from mmcv.cnn.bricks.registry import CONV_LAYERS
-from lightweight.models.functions import (
+from det2trt.models.functions import (
     modulated_deformable_conv2d,
     modulated_deformable_conv2d2,
 )

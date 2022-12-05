@@ -1,4 +1,4 @@
-_base_ = ["../bevformer_small.py", "../../_base_/lightweight.py"]
+_base_ = ["../bevformer_small.py", "../../_base_/det2trt.py"]
 
 model = dict(
     type="BEVFormerTRT",
