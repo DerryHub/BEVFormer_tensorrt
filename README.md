@@ -154,6 +154,13 @@ make -j$(nproc)
 make install
 ```
 
+**Run Unit Test of  Custom TensorRT Plugins**
+
+```shell
+cd ${PROJECT_DIR}
+sh samples/test_trt_ops.sh
+```
+
 ##### Build and Install Part of Ops in MMDetection3D
 
 ```shell
@@ -173,7 +180,7 @@ python setup.py build develop
 | BEVFormer small | NuScenes |     1      | NDS: 0.478<br/>mAP: 0.370 | 5.1  |    680    |    3147     | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      | NDS: 0.517<br/>mAP: 0.416 | 2.4  |    265    |    5435     | RTX 3090 |
 
-#### BEVFormer TensorRT with MMDeploy Plugins
+#### BEVFormer TensorRT with MMDeploy Plugins (Only Support FP32)
 
 |         Model         |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |             FPS             |          Size (MB)          |          Memory (MB)          |  Device  |
 | :-------------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-------------------------: | :-------------------------: | :---------------------------: | :------: |
@@ -243,6 +250,14 @@ python setup.py build develop
 | CenterNet | COCO | TensorRT  |     32     |   FP16    |          -          | mAP: 0.294<br/>mAP_50: 0.46<br/>mAP_75: 0.313<br/>mAP_s: 0.102<br/>mAP_m: 0.329<br/>mAP_l: 0.463 | 16162 |    29     |    5183     | RTX 3090 |
 | CenterNet | COCO | TensorRT  |     32     | FP32/INT8 | PTQ max/per-tensor  | mAP: 0.29<br/>mAP_50: 0.456<br/>mAP_75: 0.306<br/>mAP_s: 0.101<br/>mAP_m: 0.324<br/>mAP_l: 0.457 | 14814 |    25     |    4673     | RTX 3090 |
 | CenterNet | COCO | TensorRT  |     32     | FP16/INT8 | PTQ max/per-tensor  | mAP: 0.29<br/>mAP_50: 0.456<br/>mAP_75: 0.307<br/>mAP_s: 0.101<br/>mAP_m: 0.325<br/>mAP_l: 0.456 | 16754 |    19     |    4117     | RTX 3090 |
+
+## TensorRT Plugins
+
+Support TensorRT Ops in BEVFormer: `Grid Sampler`, `Multi-scale Deformable Attention`, `Modulated Deformable Conv2d` and `Rotate`.
+
+Each operation is implemented as 2 versions: **FP32/FP16 (nv_half)** and **FP32/FP16 (nv_half2)**.
+
+For specific speed comparison, see [Custom TensorRT Plugins](./TensorRT/).
 
 ## Run
 
