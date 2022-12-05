@@ -1,22 +1,13 @@
 # TensorRT Plugins
 
-## Install
-
-```shell
-cd build
-cmake .. -DCMAKE_TENSORRT_PATH=/path/to/TensorRT
-make -j$(nproc)
-make install
-```
-
 ## Plugins
 
 ### Grid Sampler
 
 |     OP Name     |                          Attributes                          |        Inputs         |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
 | :-------------: | :----------------------------------------------------------: | :-------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| GridSamplerTRT  | interpolation_mode: int<br />padding_mode: int<br />align_corners: int | input: T<br />grid: T | output: T |     x1     |    x1.1    |  nv_half  | RTX 2080ti  |
-| GridSamplerTRT2 | interpolation_mode: int<br />padding_mode: int<br />align_corners: int | input: T<br />grid: T | output: T |     x1     |    x1.5    | nv_half2  | RTX 2080ti  |
+| GridSamplerTRT  | interpolation_mode: int<br />padding_mode: int<br />align_corners: int | input: T<br />grid: T | output: T |     x1     |    x1.5    |  nv_half  |  RTX 3090   |
+| GridSamplerTRT2 | interpolation_mode: int<br />padding_mode: int<br />align_corners: int | input: T<br />grid: T | output: T |     x1     |    x2.2    | nv_half2  |  RTX 3090   |
 
 #### Inputs
 
@@ -56,8 +47,8 @@ make install
 
 |           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
 | :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.4    |  nv_half  | RTX 2080ti  |
-| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.9    | nv_half2  | RTX 2080ti  |
+| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.2    |  nv_half  |  RTX 3090   |
+| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.7    | nv_half2  |  RTX 3090   |
 
 #### Inputs
 
@@ -91,8 +82,8 @@ make install
 
 |            OP Name            |                          Attributes                          |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
 | :---------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.2    |  nv_half  | RTX 2080ti  |
-| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.5    | nv_half2  | RTX 2080ti  |
+| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.3    |  nv_half  |  RTX 3090   |
+| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.4    | nv_half2  |  RTX 3090   |
 
 #### Inputs
 
@@ -148,8 +139,8 @@ make install
 
 |  OP Name   |     Attributes     |               Inputs                |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
 | :--------: | :----------------: | :---------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| RotateTRT  | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    X1.6    |  nv_half  | RTX 2080ti  |
-| RotateTRT2 | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    x1.7    | nv_half2  | RTX 2080ti  |
+| RotateTRT  | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    X2.1    |  nv_half  |  RTX 3090   |
+| RotateTRT2 | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    x2.1    | nv_half2  |  RTX 3090   |
 
 #### Inputs
 

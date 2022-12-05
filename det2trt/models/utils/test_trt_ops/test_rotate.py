@@ -3,10 +3,10 @@ import unittest
 from .base_test_case import BaseTestCase
 
 
-img_shape = [32, 1001, 1001]
+img_shape = [128, 2001, 2001]
 angle_shape = [1]
 center_shape = [2]
-output_shape = [32, 1001, 1001]
+output_shape = [128, 2001, 2001]
 
 
 class RotateTestCase(BaseTestCase, unittest.TestCase):
