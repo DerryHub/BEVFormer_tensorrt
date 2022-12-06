@@ -271,93 +271,93 @@ The following tutorial uses `BEVFormer base` as an example.
 
 * Evaluate with PyTorch
 
-  ```shell
-  cd ${PROJECT_DIR}
-  # defult gpu_id is 0
-  sh samples/bevformer/base/pth_evaluate.sh -d ${gpu_id}
-  ```
+```shell
+cd ${PROJECT_DIR}
+# defult gpu_id is 0
+sh samples/bevformer/base/pth_evaluate.sh -d ${gpu_id}
+```
 
 * Evaluate with TensorRT and MMDeploy Plugins
 
-  ```shell
-  # convert .pth to .onnx
-  sh samples/bevformer/base/pth2onnx.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP32)
-  sh samples/bevformer/base/onnx2trt.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP16)
-  sh samples/bevformer/base/onnx2trt_fp16.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP32)
-  sh samples/bevformer/base/trt_evaluate.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP16)
-  sh samples/bevformer/base/trt_evaluate_fp16.sh -d ${gpu_id}
-  
-  # Quantization
-  # calibration of post training quantization
-  sh samples/bevformer/base/quant_max_ptq.sh -d ${gpu_id}
-  # convert .pth to .onnx
-  sh samples/bevformer/base/pth2onnx_q.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP32/INT8)
-  sh samples/bevformer/base/onnx2trt_int8.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP16/INT8)
-  sh samples/bevformer/base/onnx2trt_int8_fp16.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP32/INT8)
-  sh samples/bevformer/base/trt_evaluate_int8.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP16/INT8)
-  sh samples/bevformer/base/trt_evaluate_int8_fp16.sh -d ${gpu_id}
-  
-  # quantization aware train
-  # defult gpu_ids is 0,1,2,3,4,5,6,7
-  sh samples/bevformer/base/quant_aware_train.sh -d ${gpu_ids}
-  # then following the post training quantization process
-  ```
+```shell
+# convert .pth to .onnx
+sh samples/bevformer/base/pth2onnx.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP32)
+sh samples/bevformer/base/onnx2trt.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP16)
+sh samples/bevformer/base/onnx2trt_fp16.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP32)
+sh samples/bevformer/base/trt_evaluate.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP16)
+sh samples/bevformer/base/trt_evaluate_fp16.sh -d ${gpu_id}
+
+# Quantization
+# calibration of post training quantization
+sh samples/bevformer/base/quant_max_ptq.sh -d ${gpu_id}
+# convert .pth to .onnx
+sh samples/bevformer/base/pth2onnx_q.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP32/INT8)
+sh samples/bevformer/base/onnx2trt_int8.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP16/INT8)
+sh samples/bevformer/base/onnx2trt_int8_fp16.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP32/INT8)
+sh samples/bevformer/base/trt_evaluate_int8.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP16/INT8)
+sh samples/bevformer/base/trt_evaluate_int8_fp16.sh -d ${gpu_id}
+
+# quantization aware train
+# defult gpu_ids is 0,1,2,3,4,5,6,7
+sh samples/bevformer/base/quant_aware_train.sh -d ${gpu_ids}
+# then following the post training quantization process
+```
 
 * Evaluate with TensorRT and Custom Plugins
 
-  ```shell
-  # nv_half
-  # convert .pth to .onnx
-  sh samples/bevformer/plugin/base/pth2onnx.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP32)
-  sh samples/bevformer/plugin/base/onnx2trt.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP16-nv_half)
-  sh samples/bevformer/plugin/base/onnx2trt_fp16.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP32)
-  sh samples/bevformer/plugin/base/trt_evaluate.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP16-nv_half)
-  sh samples/bevformer/plugin/base/trt_evaluate_fp16.sh -d ${gpu_id}
-  
-  # nv_half2
-  # convert .pth to .onnx
-  sh samples/bevformer/plugin/base/pth2onnx_2.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP16-nv_half2)
-  sh samples/bevformer/plugin/base/onnx2trt_fp16_2.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP16-nv_half2)
-  sh samples/bevformer/plugin/base/trt_evaluate_fp16_2.sh -d ${gpu_id}
-  
-  # Quantization
-  # calibration of post training quantization
-  sh samples/bevformer/base/quant_max_ptq.sh -d ${gpu_id}
-  
-  # nv_half
-  # convert .pth to .onnx
-  sh samples/bevformer/plugin/base/pth2onnx_q.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP32/INT8)
-  sh samples/bevformer/plugin/base/onnx2trt_int8.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP16-nv_half/INT8)
-  sh samples/bevformer/plugin/base/onnx2trt_int8_fp16.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP32/INT8)
-  sh samples/bevformer/plugin/base/trt_evaluate_int8.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP16-nv_half/INT8)
-  sh samples/bevformer/plugin/base/trt_evaluate_int8_fp16.sh -d ${gpu_id}
-  
-  # nv_half2
-  # convert .pth to .onnx
-  sh samples/bevformer/plugin/base/pth2onnx_q_2.sh -d ${gpu_id}
-  # convert .onnx to TensorRT engine (FP16-nv_half2/INT8)
-  sh samples/bevformer/plugin/base/onnx2trt_int8_fp16_2.sh -d ${gpu_id}
-  # evaluate with TensorRT engine (FP16-nv_half2/INT8)
-  sh samples/bevformer/plugin/base/trt_evaluate_int8_fp16_2.sh -d ${gpu_id}
-  ```
+```shell
+# nv_half
+# convert .pth to .onnx
+sh samples/bevformer/plugin/base/pth2onnx.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP32)
+sh samples/bevformer/plugin/base/onnx2trt.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP16-nv_half)
+sh samples/bevformer/plugin/base/onnx2trt_fp16.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP32)
+sh samples/bevformer/plugin/base/trt_evaluate.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP16-nv_half)
+sh samples/bevformer/plugin/base/trt_evaluate_fp16.sh -d ${gpu_id}
+
+# nv_half2
+# convert .pth to .onnx
+sh samples/bevformer/plugin/base/pth2onnx_2.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP16-nv_half2)
+sh samples/bevformer/plugin/base/onnx2trt_fp16_2.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP16-nv_half2)
+sh samples/bevformer/plugin/base/trt_evaluate_fp16_2.sh -d ${gpu_id}
+
+# Quantization
+# calibration of post training quantization
+sh samples/bevformer/base/quant_max_ptq.sh -d ${gpu_id}
+
+# nv_half
+# convert .pth to .onnx
+sh samples/bevformer/plugin/base/pth2onnx_q.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP32/INT8)
+sh samples/bevformer/plugin/base/onnx2trt_int8.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP16-nv_half/INT8)
+sh samples/bevformer/plugin/base/onnx2trt_int8_fp16.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP32/INT8)
+sh samples/bevformer/plugin/base/trt_evaluate_int8.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP16-nv_half/INT8)
+sh samples/bevformer/plugin/base/trt_evaluate_int8_fp16.sh -d ${gpu_id}
+
+# nv_half2
+# convert .pth to .onnx
+sh samples/bevformer/plugin/base/pth2onnx_q_2.sh -d ${gpu_id}
+# convert .onnx to TensorRT engine (FP16-nv_half2/INT8)
+sh samples/bevformer/plugin/base/onnx2trt_int8_fp16_2.sh -d ${gpu_id}
+# evaluate with TensorRT engine (FP16-nv_half2/INT8)
+sh samples/bevformer/plugin/base/trt_evaluate_int8_fp16_2.sh -d ${gpu_id}
+```
 
 ## Acknowledgement
 
@@ -368,3 +368,4 @@ This project is mainly based on these excellent open source projects:
 * [MMCV](https://github.com/open-mmlab/mmcv)
 * [MMDetection](https://github.com/open-mmlab/mmdetection)
 * [MMDeploy](https://github.com/open-mmlab/mmdeploy)
+
