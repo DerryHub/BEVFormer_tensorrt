@@ -151,8 +151,8 @@ def main():
     flops, params = profile(model, inputs_kw=inputs)
 
     print(f"Config file is {args.config}")
-    print(f"FLOPs = {flops / 1000 ** 3}G")
-    print(f"Params = {params / 1000 ** 2}M")
+    print(f"FLOPs = {flops / 1024 ** 3}G")
+    print(f"Params = {params / 1024 ** 2}M")
 
 
 if __name__ == "__main__":
