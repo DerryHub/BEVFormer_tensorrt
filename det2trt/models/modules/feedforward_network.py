@@ -52,10 +52,9 @@ class FFNTRT(FFN):
         for _ in range(num_fcs - 1):
             layers.append(
                 nn.Sequential(
-                    # TODO: Waiting bug of TensorRT-8.5.1.7 fixed
                     linear(in_channels, feedforward_channels),
-                    ReLUAddZeros(),
-                    # self.activate,
+                    # TODO: Waiting bug of TensorRT-8.5.1.7 fixed
+                    self.activate if linear == nn.Linear else ReLUAddZeros(),
                     nn.Dropout(ffn_drop),
                 )
             )

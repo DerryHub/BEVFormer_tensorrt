@@ -41,7 +41,6 @@ def main():
 
     if args.int8:
         quant_nn.TensorQuantizer.use_fb_fake_quant = True
-        output += "_int8"
     if args.flag:
         output += f"_{args.flag}"
     output_file = os.path.join(config.ONNX_PATH, output + ".onnx")

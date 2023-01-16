@@ -13,6 +13,7 @@ def build_engine(
     int8=False,
     fp16=False,
     max_workspace_size=1,
+    calibrator=None
 ):
     """Takes an ONNX file and creates a TensorRT engine to run inference with"""
     with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
@@ -46,6 +47,8 @@ def build_engine(
 
         if int8:
             config.set_flag(trt.BuilderFlag.INT8)
+            if calibrator is not None:
+                config.int8_calibrator = calibrator
 
         if fp16:
             config.set_flag(trt.BuilderFlag.FP16)

@@ -26,7 +26,7 @@ def init_quant_desc(calibrator, per_channel_quantization=False):
     quant_nn.QuantLinear.set_default_quant_desc_weight(quant_desc_weight)
 
 
-def calibrator(
+def calibrator_qdq(
     model,
     calibrator,
     loader,

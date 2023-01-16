@@ -5,8 +5,18 @@ _base_ = [
 
 model = dict(type="CenterNetTRT")
 
+data = dict(
+    samples_per_gpu=1,
+    quant=dict(
+        type={{_base_.dataset_type}},
+        ann_file={{_base_.data.train.dataset.ann_file}},
+        img_prefix={{_base_.data.train.dataset.img_prefix}},
+        pipeline={{_base_.test_pipeline}},
+    ),
+)
+
 # batch_size, num_classes, img_h, img_w
-default_shapes = dict(batch_size=1, img_h=672, img_w=672, num_classes=80)  # 根据模型输入改
+default_shapes = dict(batch_size=1, img_h=672, img_w=672, num_classes=80)
 
 input_shapes = dict(image=["batch_size", 3, "img_h", "img_w"])
 
