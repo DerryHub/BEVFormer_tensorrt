@@ -178,6 +178,114 @@ class SpatialCrossAttentionTRT(SpatialCrossAttention):
 
 
 @ATTENTION.register_module()
+class SpatialCrossAttentionTRTP(SpatialCrossAttentionTRT):
+    """An attention module used in BEVFormer.
+    Args:
+        embed_dims (int): The embedding dimension of Attention.
+            Default: 256.
+        num_cams (int): The number of cameras
+        dropout (float): A Dropout layer on `inp_residual`.
+            Default: 0..
+        init_cfg (obj:`mmcv.ConfigDict`): The Config for initialization.
+            Default: None.
+        deformable_attention: (dict): The config for the deformable attention used in SCA.
+    """
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super(SpatialCrossAttentionTRTP, self).__init__(*args, **kwargs)
+
+    @force_fp32(apply_to=("query", "key", "value", "query_pos", "reference_points_cam"))
+    def forward_trt(
+        self,
+        query,
+        key,
+        value,
+        residual=None,
+        query_pos=None,
+        key_padding_mask=None,
+        reference_points=None,
+        spatial_shapes=None,
+        reference_points_cam=None,
+        bev_mask=None,
+        level_start_index=None,
+        flag="encoder",
+        **kwargs,
+    ):
+        """Forward Function of Detr3DCrossAtten.
+        Args:
+            query (Tensor): Query of Transformer with shape
+                (num_query, bs, embed_dims).
+            key (Tensor): The key tensor with shape
+                `(num_key, bs, embed_dims)`.
+            value (Tensor): The value tensor with shape
+                `(num_key, bs, embed_dims)`. (B, N, C, H, W)
+            residual (Tensor): The tensor used for addition, with the
+                same shape as `x`. Default None. If None, `x` will be used.
+            query_pos (Tensor): The positional encoding for `query`.
+                Default: None.
+            key_pos (Tensor): The positional encoding for  `key`. Default
+                None.
+            reference_points (Tensor):  The normalized reference
+                points with shape (bs, num_query, 4),
+                all elements is range in [0, 1], top-left (0,0),
+                bottom-right (1, 1), including padding area.
+                or (N, Length_{query}, num_levels, 4), add
+                additional two dimensions is (w, h) to
+                form reference boxes.
+            key_padding_mask (Tensor): ByteTensor for `query`, with
+                shape [bs, num_key].
+            spatial_shapes (Tensor): Spatial shape of features in
+                different level. With shape  (num_levels, 2),
+                last dimension represent (h, w).
+            level_start_index (Tensor): The start index of each level.
+                A tensor has shape (num_levels) and can be represented
+                as [0, h_0*w_0, h_0*w_0+h_1*w_1, ...].
+        Returns:
+             Tensor: forwarded results with shape [num_query, bs, embed_dims].
+        """
+        if residual is None:
+            inp_residual = query
+        if query_pos is not None:
+            query = query + query_pos
+
+        indexes = (bev_mask.sum(-1) > 0).permute(1, 0, 2).unsqueeze(-1)
+
+        max_len = bev_mask.shape[2]
+
+        # each camera only interacts with its corresponding BEV queries. This step can  greatly save GPU memory.
+        queries_rebatch = query.repeat(self.num_cams, 1, 1)
+        reference_points_rebatch = reference_points_cam.view(
+            self.num_cams, -1, int(reference_points_cam.size(3)), 2
+        )
+
+        value = value.view(self.num_cams, -1, self.embed_dims)
+
+        queries = self.deformable_attention.forward_trt(
+            query=queries_rebatch,
+            # key=key,
+            value=value,
+            reference_points=reference_points_rebatch,
+            spatial_shapes=spatial_shapes,
+            level_start_index=level_start_index,
+        )
+        queries = queries.view(1, self.num_cams, max_len, self.embed_dims)
+
+        slots = (queries * indexes).sum(1)
+
+        count = bev_mask.sum(-1) > 0
+        count = count.sum(0)
+        count = torch.clamp(count, min=1.0)
+        slots = slots / count[..., None]
+        slots = self.output_proj(slots)
+
+        return self.dropout(slots) + inp_residual
+
+
+@ATTENTION.register_module()
 class MSDeformableAttention3DTRT(MSDeformableAttention3D):
     """An attention module used in BEVFormer based on Deformable-Detr.
     `Deformable DETR: Deformable Transformers for End-to-End Object Detection.
@@ -637,46 +745,35 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
         Returns:
              Tensor: forwarded results with shape [num_query, bs, embed_dims].
         """
-        assert isinstance(value, list)
-        # if value is None:
-        #     value = query
         if identity is None:
             identity = query
         if query_pos is not None:
             query = query + query_pos
 
-        if not self.batch_first:
-            # change to (bs, num_query ,embed_dims)
-            query = query.permute(1, 0, 2)
-            value = [value[i].permute(1, 0, 2) for i in range(len(value))]
+        assert self.batch_first
+        # if not self.batch_first:
+        #     # change to (bs, num_query ,embed_dims)
+        #     query = query.permute(1, 0, 2)
+        #     value = [value[i].permute(1, 0, 2) for i in range(len(value))]
 
         bs, num_query, _ = query.shape
         # bs, num_value, _ = value.shape
-        num_value = 0
-        for i in range(len(value)):
-            num_value += value[i].shape[1]
-            value[i] = self.value_proj(value[i]).view(
-                bs, value[i].shape[1], self.num_heads, -1
-            )
+        value = self.value_proj(value).view(6, -1, self.num_heads, self.embed_dims // self.num_heads)
 
-        assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == num_value
+        assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == value.shape[1]
         assert key_padding_mask is None
-        # if key_padding_mask is not None:
-        #     import pdb; pdb.set_trace()
-        #     value = value.masked_fill(key_padding_mask[..., None], 0.0)
 
-        # value = value.view(bs, num_value, self.num_heads, -1)
         sampling_offsets = self.sampling_offsets(query).view(
-            bs, num_query, self.num_heads, self.num_levels, self.num_points, 2
+            6, -1, self.num_heads, self.num_levels, self.num_points, 2
         )
         attention_weights = self.attention_weights(query).view(
-            bs, num_query, self.num_heads, self.num_levels * self.num_points
+            6, -1, self.num_heads, self.num_levels * self.num_points
         )
 
         attention_weights = attention_weights.softmax(-1)
 
         attention_weights = attention_weights.view(
-            bs, num_query, self.num_heads, self.num_levels, self.num_points
+            6, -1, self.num_heads, self.num_levels, self.num_points
         )
 
         if reference_points.shape[-1] == 2:
@@ -690,62 +787,26 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
                 [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1
             )
 
-            bs, num_query, num_Z_anchors, xy = reference_points.shape
-            reference_points = reference_points[:, :, None, None, None, :, :]
+            reference_points = reference_points.view(6, -1, 1, 1, 1, 4, 2)
             sampling_offsets = (
-                sampling_offsets / offset_normalizer[None, None, None, :, None, :]
+                sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
             )
-            (
-                bs,
-                num_query,
-                num_heads,
-                num_levels,
-                num_all_points,
-                xy,
-            ) = sampling_offsets.shape
             sampling_offsets = sampling_offsets.view(
-                bs,
-                num_query,
-                num_heads,
-                num_levels,
-                num_all_points // num_Z_anchors,
-                num_Z_anchors,
-                xy,
-            )
+                6, -1, self.num_heads, self.num_levels, self.num_points // 4, 4, 2)
             sampling_locations = reference_points + sampling_offsets
-            (
-                bs,
-                num_query,
-                num_heads,
-                num_levels,
-                num_points,
-                num_Z_anchors,
-                xy,
-            ) = sampling_locations.shape
-            assert num_all_points == num_points * num_Z_anchors
-
-            sampling_locations = sampling_locations.view(
-                bs, num_query, num_heads, num_levels, num_all_points, xy
-            )
-
-        elif reference_points.shape[-1] == 4:
-            assert False
+            sampling_locations = sampling_locations.view(6, -1, self.num_heads, self.num_levels, self.num_points, 2)
         else:
             raise ValueError(
                 f"Last dim of reference_points must be"
-                f" 2 or 4, but get {reference_points.shape[-1]} instead."
+                f" 2, but get {reference_points.shape[-1]} instead."
             )
 
         #  sampling_locations.shape: bs, num_query, num_heads, num_levels, num_all_points, 2
         #  attention_weights.shape: bs, num_query, num_heads, num_levels, num_all_points
 
-        value = torch.cat(value, 1)
         output = multi_scale_deformable_attn(
             value, spatial_shapes, sampling_locations, attention_weights
         )
-
-        if not self.batch_first:
-            output = output.permute(1, 0, 2)
 
         return output
 

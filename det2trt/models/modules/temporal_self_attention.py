@@ -393,21 +393,18 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
              Tensor: forwarded results with shape [num_query, bs, embed_dims].
         """
 
+        assert self.batch_first
         if value is None:
-            assert self.batch_first
-            bs, len_bev, c = query.shape
-            value = torch.stack([query, query], 1).reshape(bs * 2, len_bev, c)
-
-            # value = torch.cat([query, query], 0)
+            value = query.repeat(2, 1, 1)
 
         if identity is None:
             identity = query
         if query_pos is not None:
             query = query + query_pos
-        if not self.batch_first:
-            # change to (bs, num_query ,embed_dims)
-            query = query.permute(1, 0, 2)
-            value = value.permute(1, 0, 2)
+        # if not self.batch_first:
+        #     # change to (bs, num_query ,embed_dims)
+        #     query = query.permute(1, 0, 2)
+        #     value = value.permute(1, 0, 2)
         bs, num_query, embed_dims = query.shape
         _, num_value, _ = value.shape
         assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == num_value
@@ -420,12 +417,12 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
         if key_padding_mask is not None:
             value = value.masked_fill(key_padding_mask[..., None], 0.0)
 
-        value = value.reshape(bs * self.num_bev_queue, num_value, self.num_heads, -1)
+        value = value.view(self.num_bev_queue, -1, self.num_heads, self.embed_dims // self.num_heads)
 
         sampling_offsets = self.sampling_offsets(query)
         sampling_offsets = sampling_offsets.view(
-            bs,
-            num_query,
+            1,
+            -1,
             self.num_heads,
             self.num_bev_queue,
             self.num_levels,
@@ -433,8 +430,8 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
             2,
         )
         attention_weights = self.attention_weights(query).view(
-            bs,
-            num_query,
+            1,
+            -1,
             self.num_heads,
             self.num_bev_queue,
             self.num_levels * self.num_points,
@@ -442,8 +439,8 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
         attention_weights = attention_weights.softmax(-1)
 
         attention_weights = attention_weights.view(
-            bs,
-            num_query,
+            1,
+            -1,
             self.num_heads,
             self.num_bev_queue,
             self.num_levels,
@@ -453,17 +450,16 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
         attention_weights = (
             attention_weights.permute(0, 3, 1, 2, 4, 5)
             .reshape(
-                bs * self.num_bev_queue,
-                num_query,
+                self.num_bev_queue,
+                -1,
                 self.num_heads,
                 self.num_levels,
                 self.num_points,
-            )
-            .contiguous()
+            ).contiguous()
         )
         sampling_offsets = sampling_offsets.permute(0, 3, 1, 2, 4, 5, 6).reshape(
-            bs * self.num_bev_queue,
-            num_query,
+            self.num_bev_queue,
+            -1,
             self.num_heads,
             self.num_levels,
             self.num_points,
@@ -475,22 +471,13 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
                 [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1
             )
             sampling_locations = (
-                reference_points[:, :, None, :, None, :]
-                + sampling_offsets / offset_normalizer[None, None, None, :, None, :]
-            )
-
-        elif reference_points.shape[-1] == 4:
-            sampling_locations = (
-                reference_points[:, :, None, :, None, :2]
-                + sampling_offsets
-                / self.num_points
-                * reference_points[:, :, None, :, None, 2:]
-                * 0.5
+                reference_points.unsqueeze(2).unsqueeze(4)
+                + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
             )
         else:
             raise ValueError(
                 f"Last dim of reference_points must be"
-                f" 2 or 4, but get {reference_points.shape[-1]} instead."
+                f" 2, but get {reference_points.shape[-1]} instead."
             )
 
         if torch.onnx.is_in_onnx_export():
@@ -501,20 +488,9 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
 
         # output shape (bs*num_bev_queue, num_query, embed_dims)
         # (bs*num_bev_queue, num_query, embed_dims)-> (num_query, embed_dims, bs*num_bev_queue)
-        output = output.permute(1, 2, 0)
-
-        # fuse history value and current value
-        # (num_query, embed_dims, bs*num_bev_queue)-> (num_query, embed_dims, bs, num_bev_queue)
-        output = output.view(num_query, embed_dims, bs, self.num_bev_queue)
-        output = output.mean(-1)
-
-        # (num_query, embed_dims, bs)-> (bs, num_query, embed_dims)
-        output = output.permute(2, 0, 1)
+        output = torch.mean(output, keepdim=True, dim=0)
 
         output = self.output_proj(output)
-
-        if not self.batch_first:
-            output = output.permute(1, 0, 2)
 
         return self.dropout(output) + identity
 
