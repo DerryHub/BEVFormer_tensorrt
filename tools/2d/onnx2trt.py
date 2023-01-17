@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--int8", action="store_true")
     parser.add_argument("--max_workspace_size", type=int, default=1)
-    parser.add_argument("--calibrator_qdq", type=str, default=None, help='[legacy, entropy, minmax]')
+    parser.add_argument("--calibrator", type=str, default=None, help='[legacy, entropy, minmax]')
     parser.add_argument("--samples_per_gpu", default=32, type=int)
     parser.add_argument("--workers_per_gpu", default=8, type=int)
     parser.add_argument("--length", type=int, default=500, help='length of data to calibrate')
