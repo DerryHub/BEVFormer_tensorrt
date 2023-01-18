@@ -69,11 +69,11 @@ def allocate_buffers(engine, context, input_shapes, output_shapes):
 def do_inference(context, bindings, inputs, outputs, stream, batch_size=1):
     [cuda.memcpy_htod_async(inp.device, inp.host, stream) for inp in inputs]
 
+    stream.synchronize()
     t1 = time.time()
     context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
+    stream.synchronize()
     t2 = time.time()
     [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
-
-    stream.synchronize()
 
     return outputs, t2 - t1

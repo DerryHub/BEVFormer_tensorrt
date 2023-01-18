@@ -16,7 +16,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Post-training Quantization")
     parser.add_argument("config", help="test config file path")
     parser.add_argument("checkpoint", help="checkpoint file")
-    parser.add_argument("--calibrator_qdq", default="max", help="[max, histogram]")
+    parser.add_argument("--calibrator", default="max", help="[max, histogram]")
     parser.add_argument("--pcq", action="store_true", help="per channel quantization")
     parser.add_argument("--d_len", default=500, type=int)
     parser.add_argument("--samples_per_gpu", default=32, type=int)

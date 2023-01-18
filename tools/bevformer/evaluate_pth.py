@@ -98,10 +98,12 @@ def main():
         )
 
         with torch.no_grad():
+            torch.cuda.synchronize()
             t1 = time.time()
             bev_embed, outputs_classes, outputs_coords = model(
                 img, prev_bev, use_prev_bev, can_bus, lidar2img
             )
+            torch.cuda.synchronize()
             t2 = time.time()
 
         results.extend(

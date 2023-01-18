@@ -61,8 +61,10 @@ def main():
             img_meta["batch_input_shape"] = batch_input_shape
 
         with torch.no_grad():
+            torch.cuda.synchronize()
             t1 = time.time()
             out = model(img)
+            torch.cuda.synchronize()
             t2 = time.time()
 
         ts.append(t2 - t1)
