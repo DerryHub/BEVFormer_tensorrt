@@ -75,5 +75,6 @@ def do_inference(context, bindings, inputs, outputs, stream, batch_size=1):
     stream.synchronize()
     t2 = time.time()
     [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
+    stream.synchronize()
 
     return outputs, t2 - t1
