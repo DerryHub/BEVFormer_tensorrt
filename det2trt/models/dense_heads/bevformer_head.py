@@ -245,34 +245,36 @@ class BEVFormerHeadTRTP(BEVFormerHeadTRT):
         )
 
         bev_embed, hs, init_reference, inter_references = outputs
-        hs = hs.permute(0, 2, 1, 3)
+        init_reference = init_reference.view(1, -1, 3)
+        inter_references = inter_references.view(1, 1, -1, 3)
+        hs = hs.view(1, 1, -1, self.embed_dims)
+
         outputs_classes = []
         outputs_coords = []
-        for lvl in range(hs.shape[0]):
+        for lvl in range(int(hs.shape[0])):
             if lvl == 0:
                 reference = init_reference
             else:
                 reference = inter_references[lvl - 1]
             reference = inverse_sigmoid(reference)
             outputs_class = self.cls_branches[lvl](hs[lvl])
-            tmp = self.reg_branches[lvl](hs[lvl])
+            outputs_coord = self.reg_branches[lvl](hs[lvl])
 
             assert reference.shape[-1] == 3
-            tmp[..., 0:2] += reference[..., 0:2]
-            tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
-            tmp[..., 4:5] += reference[..., 2:3]
-            tmp[..., 4:5] = tmp[..., 4:5].sigmoid()
-            tmp[..., 0:1] = (
-                tmp[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0]
+            outputs_coord[..., 0:2] += reference[..., 0:2]
+            outputs_coord[..., 0:2] = outputs_coord[..., 0:2].sigmoid()
+            outputs_coord[..., 4:5] += reference[..., 2:3]
+            outputs_coord[..., 4:5] = outputs_coord[..., 4:5].sigmoid()
+            outputs_coord[..., 0:1] = (
+                outputs_coord[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0]
             )
-            tmp[..., 1:2] = (
-                tmp[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1]
+            outputs_coord[..., 1:2] = (
+                outputs_coord[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1]
             )
-            tmp[..., 4:5] = (
-                tmp[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2]
+            outputs_coord[..., 4:5] = (
+                outputs_coord[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2]
             )
 
-            outputs_coord = tmp
             outputs_classes.append(outputs_class)
             outputs_coords.append(outputs_coord)
 

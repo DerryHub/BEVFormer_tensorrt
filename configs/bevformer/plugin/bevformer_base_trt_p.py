@@ -35,7 +35,7 @@ model = dict(
                 ),
             ),
             decoder=dict(
-                type="DetectionTransformerDecoder",
+                type="DetectionTransformerDecoderTRTP",
                 transformerlayers=dict(
                     type="DetrTransformerDecoderLayer",
                     attn_cfgs=[

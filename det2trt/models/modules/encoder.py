@@ -191,7 +191,7 @@ class BEVFormerEncoderTRTP(BEVFormerEncoderTRT):
         eps = 1e-5
 
         mask_zeros = reference_points_cam.new_zeros(
-            self.num_points_in_pillar, 1, 6, int(reference_points_cam.shape[3]), 1, dtype=torch.int32)
+            self.num_points_in_pillar, 1, 6, int(reference_points_cam.shape[3]), 1, dtype=torch.float32)
         mask_ones = mask_zeros + 1
         bev_mask = torch.where(reference_points_cam[..., 2:3] > eps, mask_ones, mask_zeros)
         reference_points_cam = reference_points_cam[..., 0:2] / torch.max(
@@ -208,7 +208,7 @@ class BEVFormerEncoderTRTP(BEVFormerEncoderTRT):
         bev_mask *= torch.where(reference_points_cam[..., 0:1] > 0.0, mask_ones, mask_zeros)
 
         reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4)
-        bev_mask = bev_mask.permute(2, 1, 3, 0, 4)[..., 0]
+        bev_mask = bev_mask.prod(0).view(6, -1, 1)
         return reference_points_cam, bev_mask
 
     def forward_trt(
@@ -547,7 +547,6 @@ class BEVFormerLayerTRTP(BEVFormerLayerTRT):
             )
 
         for layer in self.operation_order:
-            import pdb; pdb.set_trace()
             if layer == "self_attn":
                 prev_bev = use_prev_bev * prev_bev + (1 - use_prev_bev) * query.repeat(2, 1, 1)
                 query = self.attentions[attn_index].forward_trt(

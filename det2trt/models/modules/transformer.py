@@ -312,7 +312,7 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
             feat = feat.flatten(3).permute(1, 0, 3, 2)
             if self.use_cams_embeds:
                 feat = feat + self.cams_embeds.view(6, 1, 1, self.embed_dims)
-            feat = feat + self.level_embeds[0].view(1, 1, 1, -1)
+            feat = feat + self.level_embeds[lvl].view(1, 1, 1, -1)
             spatial_shapes[lvl, 0] = int(h)
             spatial_shapes[lvl, 1] = int(w)
             feat_flatten = torch.cat([feat_flatten, feat], dim=2)
@@ -371,20 +371,14 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
             image_shape=image_shape,
             use_prev_bev=use_prev_bev,
         )
-        import pdb; pdb.set_trace()
         # bev_embed shape: bs, bev_h*bev_w, embed_dims
 
-        bs = mlvl_feats[0].size(0)
-        query_pos, query = torch.split(object_query_embed, self.embed_dims, dim=1)
-        query_pos = query_pos.unsqueeze(0).expand(bs, -1, -1)
-        query = query.unsqueeze(0).expand(bs, -1, -1)
+        query_pos, query = torch.split(object_query_embed.unsqueeze(1), self.embed_dims, dim=2)
         reference_points = self.reference_points(query_pos)
         reference_points = reference_points.sigmoid()
         init_reference_out = reference_points
 
-        query = query.permute(1, 0, 2)
-        query_pos = query_pos.permute(1, 0, 2)
-        bev_embed = bev_embed.permute(1, 0, 2)
+        bev_embed = bev_embed.view(-1, 1, self.embed_dims)
         inter_states, inter_references = self.decoder(
             query=query,
             key=None,

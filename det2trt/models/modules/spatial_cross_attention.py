@@ -252,10 +252,6 @@ class SpatialCrossAttentionTRTP(SpatialCrossAttentionTRT):
         if query_pos is not None:
             query = query + query_pos
 
-        indexes = (bev_mask.sum(-1) > 0).permute(1, 0, 2).unsqueeze(-1)
-
-        max_len = bev_mask.shape[2]
-
         # each camera only interacts with its corresponding BEV queries. This step can  greatly save GPU memory.
         queries_rebatch = query.repeat(self.num_cams, 1, 1)
         reference_points_rebatch = reference_points_cam.view(
@@ -272,14 +268,9 @@ class SpatialCrossAttentionTRTP(SpatialCrossAttentionTRT):
             spatial_shapes=spatial_shapes,
             level_start_index=level_start_index,
         )
-        queries = queries.view(1, self.num_cams, max_len, self.embed_dims)
 
-        slots = (queries * indexes).sum(1)
-
-        count = bev_mask.sum(-1) > 0
-        count = count.sum(0)
-        count = torch.clamp(count, min=1.0)
-        slots = slots / count[..., None]
+        bev_mask = bev_mask / torch.clamp(bev_mask.sum(0, keepdims=True), min=1e-4)
+        slots = (queries * bev_mask).sum(0, keepdims=True)
         slots = self.output_proj(slots)
 
         return self.dropout(slots) + inp_residual
