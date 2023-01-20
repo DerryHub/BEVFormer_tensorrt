@@ -81,7 +81,7 @@ model = dict(
             embed_dims=_dim_,
             encoder=dict(
                 type="BEVFormerEncoder",
-                num_layers=1,
+                num_layers=6,
                 pc_range=point_cloud_range,
                 num_points_in_pillar=4,
                 return_intermediate=False,
@@ -125,7 +125,7 @@ model = dict(
             ),
             decoder=dict(
                 type="DetectionTransformerDecoder",
-                num_layers=1,
+                num_layers=6,
                 return_intermediate=True,
                 transformerlayers=dict(
                     type="DetrTransformerDecoderLayer",

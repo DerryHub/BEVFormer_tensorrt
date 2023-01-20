@@ -215,7 +215,6 @@ class BEVFormerHeadTRTP(BEVFormerHeadTRT):
     def forward_trt(
         self, mlvl_feats, prev_bev, can_bus, lidar2img, image_shape, use_prev_bev
     ):
-        # bs, num_cam, _, _, _ = mlvl_feats[0].shape
         dtype = mlvl_feats[0].dtype
         object_query_embeds = self.query_embedding.weight
         bev_queries = self.bev_embedding.weight
@@ -245,9 +244,9 @@ class BEVFormerHeadTRTP(BEVFormerHeadTRT):
         )
 
         bev_embed, hs, init_reference, inter_references = outputs
-        init_reference = init_reference.view(1, -1, 3)
-        inter_references = inter_references.view(1, 1, -1, 3)
-        hs = hs.view(1, 1, -1, self.embed_dims)
+        init_reference = init_reference.view(1, self.num_query, 3)
+        inter_references = inter_references.view(-1, 1, self.num_query, 3)
+        hs = hs.view(-1, 1, self.num_query, self.embed_dims)
 
         outputs_classes = []
         outputs_coords = []

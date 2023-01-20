@@ -238,6 +238,10 @@ class PerceptionTransformerTRT(PerceptionTransformer):
 
 @TRANSFORMER.register_module()
 class PerceptionTransformerTRTP(PerceptionTransformerTRT):
+    def __init__(self, *args, **kwargs):
+        super(PerceptionTransformerTRTP, self).__init__(*args, **kwargs)
+        self.rotate = rotate_trt
+
     def get_bev_features_trt(
         self,
         mlvl_feats,
@@ -291,7 +295,7 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
 
         if self.rotate_prev_bev:
             rotation_angle = can_bus[-1]
-            prev_bev = rotate_trt(
+            prev_bev = self.rotate(
                 prev_bev.view(bev_h, bev_w, -1).permute(2, 0, 1),
                 rotation_angle,
                 center=prev_bev.new_tensor(self.rotate_center),
@@ -316,10 +320,6 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
             spatial_shapes[lvl, 0] = int(h)
             spatial_shapes[lvl, 1] = int(w)
             feat_flatten = torch.cat([feat_flatten, feat], dim=2)
-
-        level_start_index = torch.cat(
-            (spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1])
-        )
         feat_flatten = feat_flatten.view(6, -1, 1, self.embed_dims)
 
         bev_embed = self.encoder.forward_trt(
@@ -331,7 +331,7 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
             bev_w=bev_w,
             bev_pos=bev_pos,
             spatial_shapes=spatial_shapes,
-            level_start_index=level_start_index,
+            level_start_index=None,
             prev_bev=prev_bev,
             shift=shift,
             image_shape=image_shape,
@@ -384,7 +384,7 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
             key=None,
             value=bev_embed,
             query_pos=query_pos,
-            reference_points=reference_points,
+            reference_points=reference_points.view(1, 900, 3),
             reg_branches=reg_branches,
             cls_branches=cls_branches,
             spatial_shapes=torch.tensor([[bev_h, bev_w]], device=query.device),
@@ -397,114 +397,7 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
 
 
 @TRANSFORMER.register_module()
-class PerceptionTransformerTRTP2(PerceptionTransformerTRT):
-    def get_bev_features_trt(
-        self,
-        mlvl_feats,
-        bev_queries,
-        bev_h,
-        bev_w,
-        can_bus,
-        lidar2img,
-        grid_length=[0.512, 0.512],
-        bev_pos=None,
-        prev_bev=None,
-        image_shape=None,
-        use_prev_bev=None,
-    ):
-        bs = mlvl_feats[0].size(0)
-        bev_queries = bev_queries.unsqueeze(1).repeat(1, bs, 1)
-        bev_pos = bev_pos.flatten(2).permute(2, 0, 1)
-
-        # obtain rotation angle and shift with ego motion
-        delta_x = can_bus[0:1]
-        delta_y = can_bus[1:2]
-        ego_angle = can_bus[-2:-1] / np.pi * 180
-
-        grid_length_y = grid_length[0]
-        grid_length_x = grid_length[1]
-        translation_length = torch.sqrt(delta_x ** 2 + delta_y ** 2)
-        # translation_angle = torch.atan2(delta_y, delta_x) / np.pi * 180
-        translation_angle = (
-            (
-                torch.atan(delta_y / (delta_x + 1e-8))
-                + ((1 - torch.sign(delta_x)) / 2) * torch.sign(delta_y) * np.pi
-            )
-            / np.pi
-            * 180
-        )
-        bev_angle = ego_angle - translation_angle
-        shift_y = (
-            translation_length
-            * torch.cos(bev_angle / 180 * np.pi)
-            / grid_length_y
-            / bev_h
-        )
-        shift_x = (
-            translation_length
-            * torch.sin(bev_angle / 180 * np.pi)
-            / grid_length_x
-            / bev_w
-        )
-        shift_y = shift_y * int(self.use_shift)
-        shift_x = shift_x * int(self.use_shift)
-        shift = torch.stack([shift_x, shift_y]).permute(1, 0)
-
-        if self.rotate_prev_bev:
-            for i in range(bs):
-                rotation_angle = can_bus[-1]
-                tmp_prev_bev = prev_bev[:, i].reshape(bev_h, bev_w, -1).permute(2, 0, 1)
-                tmp_prev_bev = rotate_trt2(
-                    tmp_prev_bev,
-                    rotation_angle,
-                    center=tmp_prev_bev.new_tensor(self.rotate_center),
-                )
-                tmp_prev_bev = tmp_prev_bev.permute(1, 2, 0).reshape(
-                    bev_h * bev_w, 1, -1
-                )
-                prev_bev[:, i] = tmp_prev_bev[:, 0]
-
-        # add can bus signals
-        can_bus = can_bus.unsqueeze(0)
-        can_bus = self.can_bus_mlp(can_bus)[None, :, :]
-        bev_queries = bev_queries + can_bus * int(self.use_can_bus)
-
-        feat_flatten = []
-        spatial_shapes = []
-        for lvl, feat in enumerate(mlvl_feats):
-            bs, num_cam, c, h, w = feat.shape
-            spatial_shape = (h, w)
-            feat = feat.flatten(3).permute(1, 0, 3, 2)
-            if self.use_cams_embeds:
-                feat = feat + self.cams_embeds[:, None, None, :].to(feat.dtype)
-            feat = feat + self.level_embeds[None, None, lvl : lvl + 1, :].to(feat.dtype)
-            spatial_shapes.append(spatial_shape)
-            feat_flatten.append(feat)
-
-        spatial_shapes = torch.as_tensor(
-            spatial_shapes, dtype=torch.long, device=bev_pos.device
-        )
-        level_start_index = torch.cat(
-            (spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1])
-        )
-
-        for i in range(len(feat_flatten)):
-            feat_flatten[i] = feat_flatten[i].permute(0, 2, 1, 3)
-
-        bev_embed = self.encoder.forward_trt(
-            bev_queries,
-            feat_flatten,
-            feat_flatten,
-            lidar2img=lidar2img,
-            bev_h=bev_h,
-            bev_w=bev_w,
-            bev_pos=bev_pos,
-            spatial_shapes=spatial_shapes,
-            level_start_index=level_start_index,
-            prev_bev=prev_bev,
-            shift=shift,
-            image_shape=image_shape,
-            use_prev_bev=use_prev_bev,
-        )
-
-        return bev_embed
+class PerceptionTransformerTRTP2(PerceptionTransformerTRTP):
+    def __init__(self, *args, **kwargs):
+        super(PerceptionTransformerTRTP2, self).__init__(*args, **kwargs)
+        self.rotate = rotate_trt2

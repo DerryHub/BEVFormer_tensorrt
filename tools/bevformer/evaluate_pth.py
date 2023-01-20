@@ -113,7 +113,7 @@ def main():
         prev_bev = bev_embed
         prev_frame_info["prev_pos"] = tmp_pos
         prev_frame_info["prev_angle"] = tmp_angle
-
+        import pdb; pdb.set_trace()
         ts.append(t2 - t1)
 
         for _ in range(len(img)):

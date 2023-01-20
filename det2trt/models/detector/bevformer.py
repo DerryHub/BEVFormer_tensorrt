@@ -36,13 +36,7 @@ class BEVFormerTRT(BEVFormer):
 
     def forward_trt(self, image, prev_bev, use_prev_bev, can_bus, lidar2img):
         image_shape = image.shape[-2:]
-        # img_feats = self.extract_feat(img=image)
-        img_feats = [
-            torch.ones(1, 6, 256, 116, 200).cuda(),
-            torch.ones(1, 6, 256, 58, 100).cuda(),
-            torch.ones(1, 6, 256, 29, 50).cuda(),
-            torch.ones(1, 6, 256, 15, 25).cuda(),
-        ]
+        img_feats = self.extract_feat(img=image)
         assert len(img_feats[0]) == 1
         bev_embed, outputs_classes, outputs_coords = self.pts_bbox_head.forward_trt(
             img_feats, prev_bev, can_bus, lidar2img, image_shape, use_prev_bev
