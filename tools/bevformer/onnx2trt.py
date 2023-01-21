@@ -75,7 +75,8 @@ def main():
     calibrator = None
     if args.calibrator is not None:
         TRT_LOGGER = get_logger(trt.Logger.INTERNAL_ERROR)
-        engine_fp32_path = os.path.split(args.onnx)[1].replace('.onnx', '.trt')
+        engine_fp32_path = os.path.split(args.onnx)[1]\
+            .replace('.onnx', '.trt').replace('_cp2.', '_cp.').replace('_cp2_', '_cp_')
         engine_fp32_path = os.path.join(config.TENSORRT_PATH, engine_fp32_path)
         assert os.path.exists(engine_fp32_path), 'Engine of FP32 should be built first.'
         engine, context = create_engine_context(engine_fp32_path, TRT_LOGGER)

@@ -4,6 +4,7 @@ _base_ = [
     "../_base_/default_runtime.py",
 ]
 
+img_scale = (640, 640)  # height, width
 
 model = dict(
     type="CenterNet",
@@ -69,7 +70,7 @@ test_pipeline = [
     dict(type="LoadImageFromFile", to_float32=True),
     dict(
         type="MultiScaleFlipAug",
-        scale_factor=1.0,
+        img_scale=img_scale,
         flip=False,
         transforms=[
             dict(type="Resize", keep_ratio=True),
@@ -83,6 +84,9 @@ test_pipeline = [
                 test_mode=True,
                 test_pad_mode=["logical_or", 31],
                 test_pad_add_pix=1,
+            ),
+            dict(
+                type="Pad", pad_to_square=True, pad_val=dict(img=(0, 0, 0))
             ),
             dict(type="RandomFlip"),
             dict(type="Normalize", **img_norm_cfg),
