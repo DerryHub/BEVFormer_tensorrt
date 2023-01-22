@@ -16,7 +16,8 @@ done
 
 echo "Running on the GPU: $gpu_id"
 
-CUDA_VISIBLE_DEVICES=$gpu_id python tools/onnx2trt.py \
-configs/bevformer/bevformer_tiny_trt_q.py \
-checkpoints/onnx/bevformer_tiny_epoch_24_ptq_max_int8.onnx \
---int8
+CUDA_VISIBLE_DEVICES=$gpu_id python tools/bevformer/onnx2trt.py \
+configs/bevformer/bevformer_tiny_trt.py \
+checkpoints/onnx/bevformer_tiny_epoch_24.onnx \
+--int8 \
+--calibrator entropy

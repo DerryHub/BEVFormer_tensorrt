@@ -17,5 +17,5 @@ done
 echo "Running on the GPU: $gpu_id"
 
 CUDA_VISIBLE_DEVICES=$gpu_id python tools/2d/evaluate_trt.py \
-configs/centernet/centernet_resnet18_dcnv2_140e_coco_trt_q.py \
-checkpoints/tensorrt/centernet_resnet18_dcnv2_140e_coco_20210702_155131-c8cd631f_ptq_max_int8.trt
+configs/centernet/centernet_resnet18_dcnv2_140e_coco_trt.py \
+checkpoints/tensorrt/centernet_resnet18_dcnv2_140e_coco_20210702_155131-c8cd631f_entropy_int8.trt

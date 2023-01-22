@@ -58,6 +58,21 @@ model = dict(
     ),
 )
 
+data = dict(
+    samples_per_gpu=1,
+    quant=dict(
+        type={{_base_.dataset_type}},
+        data_root={{_base_.data_root}},
+        ann_file={{_base_.data.train.ann_file}},
+        pipeline={{_base_.test_pipeline}},
+        bev_size={{_base_.data.train.bev_size}},
+        classes={{_base_.class_names}},
+        modality={{_base_.input_modality}},
+        test_mode=True,
+        box_type_3d="LiDAR",
+    ),
+)
+
 # batch_size, num_classes, img_h, img_w
 default_shapes = dict(
     batch_size=1,

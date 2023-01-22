@@ -9,7 +9,7 @@ from mmdet.datasets import build_dataloader, build_dataset
 import sys
 
 sys.path.append(".")
-from det2trt.quantization import calibrator
+from det2trt.quantization import calibrator_qdq
 
 
 def parse_args():
@@ -56,7 +56,7 @@ def main():
         dist=False,
     )
 
-    model = calibrator(
+    model = calibrator_qdq(
         model=model,
         calibrator=args.calibrator,
         per_channel_quantization=args.pcq,

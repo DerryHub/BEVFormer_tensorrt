@@ -16,7 +16,7 @@ done
 
 echo "Running on the GPU: $gpu_id"
 
-CUDA_VISIBLE_DEVICES=$gpu_id python tools/onnx2trt.py \
+CUDA_VISIBLE_DEVICES=$gpu_id python tools/bevformer/onnx2trt.py \
 configs/bevformer/plugin/bevformer_base_trt_p2.py \
 checkpoints/onnx/bevformer_r101_dcn_24ep_cp2.onnx \
 --fp16

@@ -8,7 +8,7 @@ from mmcv.runner import load_checkpoint
 import sys
 
 sys.path.append(".")
-from det2trt.quantization import calibrator
+from det2trt.quantization import calibrator_qdq
 from third_party.bevformer.models.builder import build_model
 from third_party.bevformer.datasets.builder import build_dataloader, build_dataset
 
@@ -54,7 +54,7 @@ def main():
         dataset, samples_per_gpu=1, workers_per_gpu=6, shuffle=False, dist=False
     )
 
-    model = calibrator(
+    model = calibrator_qdq(
         model=model,
         calibrator=args.calibrator,
         per_channel_quantization=args.pcq,

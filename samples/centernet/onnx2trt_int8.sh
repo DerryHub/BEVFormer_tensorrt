@@ -16,7 +16,8 @@ done
 
 echo "Running on the GPU: $gpu_id"
 
-CUDA_VISIBLE_DEVICES=$gpu_id python tools/onnx2trt.py \
-configs/centernet/centernet_resnet18_dcnv2_140e_coco_trt_q.py \
-checkpoints/onnx/centernet_resnet18_dcnv2_140e_coco_20210702_155131-c8cd631f_ptq_max_int8.onnx \
---int8
+CUDA_VISIBLE_DEVICES=$gpu_id python tools/2d/onnx2trt.py \
+configs/centernet/centernet_resnet18_dcnv2_140e_coco_trt.py \
+checkpoints/onnx/centernet_resnet18_dcnv2_140e_coco_20210702_155131-c8cd631f.onnx \
+--int8 \
+--calibrator entropy

@@ -88,10 +88,11 @@ class BEVFormerHeadTRT(BEVFormerHead):
 
         reg_branch = []
         for _ in range(self.num_reg_fcs):
-            # TODO: Waiting bug of TensorRT-8.5.1.7 fixed
             reg_branch.append(self.linear(self.embed_dims, self.embed_dims))
-            reg_branch.append(ReLUAddZeros())
-            # reg_branch.append(nn.ReLU(inplace=True))
+            # TODO: Waiting bug of TensorRT-8.5.1.7 fixed
+            reg_branch.append(
+                nn.ReLU(inplace=True) if self.linear == nn.Linear else ReLUAddZeros()
+            )
         reg_branch.append(self.linear(self.embed_dims, self.code_size))
         reg_branch = nn.Sequential(*reg_branch)
 

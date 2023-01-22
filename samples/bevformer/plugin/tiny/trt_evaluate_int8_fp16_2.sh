@@ -17,5 +17,5 @@ done
 echo "Running on the GPU: $gpu_id"
 
 CUDA_VISIBLE_DEVICES=$gpu_id python tools/bevformer/evaluate_trt.py \
-configs/bevformer/plugin/bevformer_tiny_trt_p2_q.py \
-checkpoints/tensorrt/bevformer_tiny_epoch_24_ptq_max_int8_cp2_fp16.trt
+configs/bevformer/plugin/bevformer_tiny_trt_p2.py \
+checkpoints/tensorrt/bevformer_tiny_epoch_24_cp2_entropy_int8_fp16.trt

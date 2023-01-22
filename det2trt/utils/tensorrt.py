@@ -1,5 +1,6 @@
 import pycuda.driver as cuda
 import tensorrt as trt
+import numpy as np
 import time
 
 
@@ -52,6 +53,7 @@ def allocate_buffers(engine, context, input_shapes, output_shapes):
         size = trt.volume(dims)
         # The maximum batch size which can be used for inference.
         dtype = trt.nptype(engine.get_binding_dtype(binding))
+        assert dtype == np.float32, "Engine's inputs/outputs only support FP32."
         # Allocate host and device buffers
         host_mem = cuda.pagelocked_empty(size, dtype)
         device_mem = cuda.mem_alloc(host_mem.nbytes)
@@ -67,11 +69,12 @@ def allocate_buffers(engine, context, input_shapes, output_shapes):
 def do_inference(context, bindings, inputs, outputs, stream, batch_size=1):
     [cuda.memcpy_htod_async(inp.device, inp.host, stream) for inp in inputs]
 
+    stream.synchronize()
     t1 = time.time()
     context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
+    stream.synchronize()
     t2 = time.time()
     [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
-
     stream.synchronize()
 
     return outputs, t2 - t1

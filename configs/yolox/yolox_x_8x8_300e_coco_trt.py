@@ -2,8 +2,17 @@ _base_ = ["yolox_x_8x8_300e_coco.py", "../_base_/det2trt.py"]
 
 model = dict(type="YOLOXTRT")
 
+data = dict(
+    quant=dict(
+        type={{_base_.dataset_type}},
+        ann_file={{_base_.data.train.dataset.ann_file}},
+        img_prefix={{_base_.data.train.dataset.img_prefix}},
+        pipeline={{_base_.test_pipeline}},
+    ),
+)
+
 # batch_size, num_classes, img_h, img_w
-default_shapes = dict(batch_size=1, img_h=640, img_w=640, num_classes=80)
+default_shapes = dict(batch_size=32, img_h=640, img_w=640, num_classes=80)
 
 input_shapes = dict(image=["batch_size", 3, "img_h", "img_w"])
 
@@ -24,6 +33,11 @@ dynamic_axes = dict(_delete_=True, image={0: "batch_size", 2: "img_h", 3: "img_w
 dynamic_input = dict(
     dynamic_input=True,
     min=(1, 3, 224, 224),
-    reg=(16, 3, 512, 512),
-    max=(32, 3, 1024, 1024),
+    reg=(
+        default_shapes["batch_size"],
+        3,
+        default_shapes["img_h"],
+        default_shapes["img_w"],
+    ),
+    max=(64, 3, 1024, 1024),
 )

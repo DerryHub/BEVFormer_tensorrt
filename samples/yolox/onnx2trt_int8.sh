@@ -16,7 +16,8 @@ done
 
 echo "Running on the GPU: $gpu_id"
 
-CUDA_VISIBLE_DEVICES=$gpu_id python tools/onnx2trt.py \
-configs/yolox/yolox_x_8x8_300e_coco_trt_q.py \
-checkpoints/onnx/yolox_x_8x8_300e_coco_20211126_140254-1ef88d67_ptq_max_int8.onnx \
---int8
+CUDA_VISIBLE_DEVICES=$gpu_id python tools/2d/onnx2trt.py \
+configs/yolox/yolox_x_8x8_300e_coco_trt.py \
+checkpoints/onnx/yolox_x_8x8_300e_coco_20211126_140254-1ef88d67.onnx \
+--int8 \
+--calibrator entropy
