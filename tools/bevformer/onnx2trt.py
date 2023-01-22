@@ -13,11 +13,7 @@ import sys
 
 sys.path.append(".")
 from det2trt.convert import build_engine
-from det2trt.utils.tensorrt import (
-    HostDeviceMem,
-    get_logger,
-    create_engine_context
-)
+from det2trt.utils.tensorrt import HostDeviceMem, get_logger, create_engine_context
 
 from det2trt.quantization import get_calibrator
 from third_party.bevformer.datasets.builder import build_dataloader, build_dataset
@@ -30,8 +26,12 @@ def parse_args():
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--int8", action="store_true")
     parser.add_argument("--max_workspace_size", type=int, default=1)
-    parser.add_argument("--calibrator", type=str, default=None, help='[legacy, entropy, minmax]')
-    parser.add_argument("--length", type=int, default=500, help='length of data to calibrate')
+    parser.add_argument(
+        "--calibrator", type=str, default=None, help="[legacy, entropy, minmax]"
+    )
+    parser.add_argument(
+        "--length", type=int, default=500, help="length of data to calibrate"
+    )
     args = parser.parse_args()
     return args
 
@@ -75,10 +75,14 @@ def main():
     calibrator = None
     if args.calibrator is not None:
         TRT_LOGGER = get_logger(trt.Logger.INTERNAL_ERROR)
-        engine_fp32_path = os.path.split(args.onnx)[1]\
-            .replace('.onnx', '.trt').replace('_cp2.', '_cp.').replace('_cp2_', '_cp_')
+        engine_fp32_path = (
+            os.path.split(args.onnx)[1]
+            .replace(".onnx", ".trt")
+            .replace("_cp2.", "_cp.")
+            .replace("_cp2_", "_cp_")
+        )
         engine_fp32_path = os.path.join(config.TENSORRT_PATH, engine_fp32_path)
-        assert os.path.exists(engine_fp32_path), 'Engine of FP32 should be built first.'
+        assert os.path.exists(engine_fp32_path), "Engine of FP32 should be built first."
         engine, context = create_engine_context(engine_fp32_path, TRT_LOGGER)
         stream = cuda.Stream()
 
@@ -111,9 +115,11 @@ def main():
             def decode_data(self, data):
                 img = data["img"][0].data[0].numpy()
                 img_metas = data["img_metas"][0].data[0]
-                prev_bev = self.prev_bev_lst[self.current_batch].get('prev_bev', None)
-                use_prev_bev = self.prev_bev_lst[self.current_batch].get('use_prev_bev', None)
-                can_bus = self.prev_bev_lst[self.current_batch].get('can_bus', None)
+                prev_bev = self.prev_bev_lst[self.current_batch].get("prev_bev", None)
+                use_prev_bev = self.prev_bev_lst[self.current_batch].get(
+                    "use_prev_bev", None
+                )
+                can_bus = self.prev_bev_lst[self.current_batch].get("can_bus", None)
                 lidar2img = np.stack(img_metas[0]["lidar2img"], axis=0)
 
                 for name in self.names:
@@ -123,19 +129,30 @@ def main():
                         self.host_device_mem_dic[name].host = img
                     elif name == "prev_bev":
                         prev_bev = prev_bev.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == prev_bev.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == prev_bev.nbytes
+                        )
                         self.host_device_mem_dic[name].host = prev_bev
                     elif name == "use_prev_bev":
                         use_prev_bev = use_prev_bev.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == use_prev_bev.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == use_prev_bev.nbytes
+                        )
                         self.host_device_mem_dic[name].host = use_prev_bev
                     elif name == "can_bus":
                         can_bus = can_bus.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == can_bus.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes == can_bus.nbytes
+                        )
                         self.host_device_mem_dic[name].host = can_bus
                     elif name == "lidar2img":
                         lidar2img = lidar2img.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == lidar2img.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == lidar2img.nbytes
+                        )
                         self.host_device_mem_dic[name].host = lidar2img
                     else:
                         raise RuntimeError(f"Cannot find input name {name}.")
@@ -154,7 +171,7 @@ def main():
             "prev_pos": 0,
             "prev_angle": 0,
         }
-        print('Preparing pre BEV embeddings...')
+        print("Preparing pre BEV embeddings...")
         prog_bar = mmcv.ProgressBar(calibrator.num_batch * calibrator.batch_size)
         for i, data in enumerate(loader):
             if i >= calibrator.num_batch:
@@ -200,27 +217,25 @@ def main():
                     host_device_mem_dic[name].host = lidar2img
 
             calibrator.prev_bev_lst.append(
-                {
-                    'use_prev_bev': use_prev_bev,
-                    'prev_bev': prev_bev,
-                    'can_bus': can_bus
-                }
+                {"use_prev_bev": use_prev_bev, "prev_bev": prev_bev, "can_bus": can_bus}
             )
             [
                 cuda.memcpy_htod(
-                    host_device_mem_dic[name].device,
-                    host_device_mem_dic[name].host) for name in names
+                    host_device_mem_dic[name].device, host_device_mem_dic[name].host
+                )
+                for name in names
             ]
 
             context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
 
             [
                 cuda.memcpy_dtoh(
-                    host_device_mem_dic[name].host,
-                    host_device_mem_dic[name].device) for name in names
+                    host_device_mem_dic[name].host, host_device_mem_dic[name].device
+                )
+                for name in names
             ]
 
-            prev_bev = host_device_mem_dic['bev_embed'].host
+            prev_bev = host_device_mem_dic["bev_embed"].host
 
             for _ in range(batch_size):
                 prog_bar.update()
@@ -232,7 +247,7 @@ def main():
         int8=args.int8,
         fp16=args.fp16,
         max_workspace_size=args.max_workspace_size,
-        calibrator=calibrator
+        calibrator=calibrator,
     )
 
 

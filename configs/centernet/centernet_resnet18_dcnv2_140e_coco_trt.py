@@ -31,6 +31,11 @@ dynamic_axes = dict(_delete_=True, image={0: "batch_size", 2: "img_h", 3: "img_w
 dynamic_input = dict(
     dynamic_input=True,
     min=(1, 3, 336, 336),
-    reg=(default_shapes['batch_size'], 3, default_shapes['img_h'], default_shapes['img_w']),
+    reg=(
+        default_shapes["batch_size"],
+        3,
+        default_shapes["img_h"],
+        default_shapes["img_w"],
+    ),
     max=(64, 3, 1344, 1344),
 )

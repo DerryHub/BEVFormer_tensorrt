@@ -61,7 +61,6 @@ model = dict(
 )
 
 
-
 # learning policy
 lr_config = dict(_delete_=True, policy="step", step=[10])
 

@@ -85,9 +85,7 @@ test_pipeline = [
                 test_pad_mode=["logical_or", 31],
                 test_pad_add_pix=1,
             ),
-            dict(
-                type="Pad", pad_to_square=True, pad_val=dict(img=(0, 0, 0))
-            ),
+            dict(type="Pad", pad_to_square=True, pad_val=dict(img=(0, 0, 0))),
             dict(type="RandomFlip"),
             dict(type="Normalize", **img_norm_cfg),
             dict(type="DefaultFormatBundle"),

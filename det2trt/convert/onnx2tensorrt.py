@@ -13,7 +13,7 @@ def build_engine(
     int8=False,
     fp16=False,
     max_workspace_size=1,
-    calibrator=None
+    calibrator=None,
 ):
     """Takes an ONNX file and creates a TensorRT engine to run inference with"""
     with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
