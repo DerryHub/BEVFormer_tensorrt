@@ -300,16 +300,16 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
                 rotation_angle,
                 center=prev_bev.new_tensor(self.rotate_center),
             )
-            prev_bev = prev_bev.permute(1, 2, 0).reshape(
-                bev_h * bev_w, 1, -1
-            )
+            prev_bev = prev_bev.permute(1, 2, 0).reshape(bev_h * bev_w, 1, -1)
 
         # add can bus signals
         can_bus = can_bus.view(1, -1)
         can_bus = self.can_bus_mlp(can_bus).view(1, 1, -1)
         bev_queries = bev_queries + can_bus * int(self.use_can_bus)
 
-        feat_flatten = mlvl_feats[0].new_zeros(6, 1, 0, self.embed_dims, dtype=torch.float32)
+        feat_flatten = mlvl_feats[0].new_zeros(
+            6, 1, 0, self.embed_dims, dtype=torch.float32
+        )
         spatial_shapes = mlvl_feats[0].new_zeros(len(mlvl_feats), 2, dtype=torch.long)
         for lvl, feat in enumerate(mlvl_feats):
             _, _, _, h, w = feat.shape
@@ -373,7 +373,9 @@ class PerceptionTransformerTRTP(PerceptionTransformerTRT):
         )
         # bev_embed shape: bs, bev_h*bev_w, embed_dims
 
-        query_pos, query = torch.split(object_query_embed.unsqueeze(1), self.embed_dims, dim=2)
+        query_pos, query = torch.split(
+            object_query_embed.unsqueeze(1), self.embed_dims, dim=2
+        )
         reference_points = self.reference_points(query_pos)
         reference_points = reference_points.sigmoid()
         init_reference_out = reference_points

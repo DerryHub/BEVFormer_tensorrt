@@ -205,11 +205,7 @@ class BEVFormerHeadTRTP(BEVFormerHeadTRT):
             bev_h, bev_w (int): spatial shape of BEV queries.
         """
 
-    def __init__(
-        self,
-        *args,
-        **kwargs
-    ):
+    def __init__(self, *args, **kwargs):
         super(BEVFormerHeadTRTP, self).__init__(*args, **kwargs)
 
     def forward_trt(
@@ -226,16 +222,16 @@ class BEVFormerHeadTRTP(BEVFormerHeadTRT):
 
         outputs = self.transformer.forward_trt(
             mlvl_feats,
-            bev_queries, # [200*200, 256]
-            object_query_embeds, # [900, 512]
+            bev_queries,  # [200*200, 256]
+            object_query_embeds,  # [900, 512]
             self.bev_h,
             self.bev_w,
             grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
-            bev_pos=bev_pos, # [1, 256, 200, 200]
-            reg_branches=self.reg_branches # self.reg_branches
+            bev_pos=bev_pos,  # [1, 256, 200, 200]
+            reg_branches=self.reg_branches  # self.reg_branches
             if self.with_box_refine
             else None,  # noqa:E501
-            cls_branches=self.cls_branches if self.as_two_stage else None, # None
+            cls_branches=self.cls_branches if self.as_two_stage else None,  # None
             can_bus=can_bus,
             lidar2img=lidar2img,
             prev_bev=prev_bev,
@@ -265,13 +261,16 @@ class BEVFormerHeadTRTP(BEVFormerHeadTRT):
             outputs_coord[..., 4:5] += reference[..., 2:3]
             outputs_coord[..., 4:5] = outputs_coord[..., 4:5].sigmoid()
             outputs_coord[..., 0:1] = (
-                outputs_coord[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0]
+                outputs_coord[..., 0:1] * (self.pc_range[3] - self.pc_range[0])
+                + self.pc_range[0]
             )
             outputs_coord[..., 1:2] = (
-                outputs_coord[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1]
+                outputs_coord[..., 1:2] * (self.pc_range[4] - self.pc_range[1])
+                + self.pc_range[1]
             )
             outputs_coord[..., 4:5] = (
-                outputs_coord[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2]
+                outputs_coord[..., 4:5] * (self.pc_range[5] - self.pc_range[2])
+                + self.pc_range[2]
             )
 
             outputs_classes.append(outputs_class)
