@@ -4,11 +4,11 @@ from torch.types import _int, _bool
 from torch.autograd import Function
 
 
-class _GridSampler(Function):
+class _GridSampler2D(Function):
     @staticmethod
     def symbolic(g, input, grid, interpolation_mode, padding_mode, align_corners):
         return g.op(
-            "GridSamplerTRT",
+            "GridSampler2DTRT",
             input,
             grid,
             interpolation_mode_i=interpolation_mode,
@@ -25,10 +25,7 @@ class _GridSampler(Function):
         padding_mode: _int,
         align_corners: _bool,
     ):
-        if grid.dim() == 4:
-            grid = grid.permute(0, 2, 3, 1)
-        else:
-            grid = grid.permute(0, 2, 3, 4, 1)
+        grid = grid.permute(0, 2, 3, 1)
         grid_ = grid / 10
         output = torch.ops.aten.grid_sampler(
             input, grid_, interpolation_mode, padding_mode, align_corners
@@ -45,36 +42,86 @@ class _GridSampler(Function):
         interpolation_mode = ctx.interpolation_mode
         padding_mode = ctx.padding_mode
         align_corners = ctx.align_corners
-        if input.dim() == 4:
-            input_grad, grid_grad = torch.ops.aten.grid_sampler_2d_backward(
-                grad_outputs,
-                input,
-                grid,
-                interpolation_mode,
-                padding_mode,
-                align_corners,
-                [input.requires_grad, grid.requires_grad],
-            )
-            grid_grad = grid_grad.permute(0, 3, 1, 2)
-        else:
-            input_grad, grid_grad = torch.ops.aten.grid_sampler_3d_backward(
-                grad_outputs,
-                input,
-                grid,
-                interpolation_mode,
-                padding_mode,
-                align_corners,
-                [input.requires_grad, grid.requires_grad],
-            )
-            grid_grad = grid_grad.permute(0, 4, 1, 2, 3)
+        input_grad, grid_grad = torch.ops.aten.grid_sampler_2d_backward(
+            grad_outputs,
+            input,
+            grid,
+            interpolation_mode,
+            padding_mode,
+            align_corners,
+            [input.requires_grad, grid.requires_grad],
+        )
+        grid_grad = grid_grad.permute(0, 3, 1, 2)
         return input_grad, grid_grad * 10, None, None, None
 
-
-class _GridSampler2(_GridSampler):
+class _GridSampler3D(Function):
     @staticmethod
     def symbolic(g, input, grid, interpolation_mode, padding_mode, align_corners):
         return g.op(
-            "GridSamplerTRT2",
+            "GridSampler3DTRT",
+            input,
+            grid,
+            interpolation_mode_i=interpolation_mode,
+            padding_mode_i=padding_mode,
+            align_corners_i=align_corners,
+        )
+
+    @staticmethod
+    def forward(
+        ctx,
+        input: Tensor,
+        grid: Tensor,
+        interpolation_mode: _int,
+        padding_mode: _int,
+        align_corners: _bool,
+    ):
+        grid = grid.permute(0, 2, 3, 4, 1)
+        grid_ = grid / 10
+        output = torch.ops.aten.grid_sampler(
+            input, grid_, interpolation_mode, padding_mode, align_corners
+        )
+        ctx.save_for_backward(input, grid_)
+        ctx.interpolation_mode = interpolation_mode
+        ctx.padding_mode = padding_mode
+        ctx.align_corners = align_corners
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_outputs):
+        input, grid = ctx.saved_tensors
+        interpolation_mode = ctx.interpolation_mode
+        padding_mode = ctx.padding_mode
+        align_corners = ctx.align_corners
+        input_grad, grid_grad = torch.ops.aten.grid_sampler_3d_backward(
+            grad_outputs,
+            input,
+            grid,
+            interpolation_mode,
+            padding_mode,
+            align_corners,
+            [input.requires_grad, grid.requires_grad],
+        )
+        grid_grad = grid_grad.permute(0, 4, 1, 2, 3)
+        return input_grad, grid_grad * 10, None, None, None
+
+
+class _GridSampler2D2(_GridSampler2D):
+    @staticmethod
+    def symbolic(g, input, grid, interpolation_mode, padding_mode, align_corners):
+        return g.op(
+            "GridSampler2DTRT2",
+            input,
+            grid,
+            interpolation_mode_i=interpolation_mode,
+            padding_mode_i=padding_mode,
+            align_corners_i=align_corners,
+        )
+
+class _GridSampler3D2(_GridSampler3D):
+    @staticmethod
+    def symbolic(g, input, grid, interpolation_mode, padding_mode, align_corners):
+        return g.op(
+            "GridSampler3DTRT2",
             input,
             grid,
             interpolation_mode_i=interpolation_mode,
@@ -83,8 +130,10 @@ class _GridSampler2(_GridSampler):
         )
 
 
-_grid_sampler = _GridSampler.apply
-_grid_sampler2 = _GridSampler2.apply
+_grid_sampler2d = _GridSampler2D.apply
+_grid_sampler2d2 = _GridSampler2D2.apply
+_grid_sampler3d = _GridSampler3D.apply
+_grid_sampler3d2 = _GridSampler3D2.apply
 _MODE = {"bilinear": 0, "nearest": 1, "bicubic": 2}
 
 _PAD = {"zeros": 0, "border": 1, "reflection": 2}
@@ -160,10 +209,16 @@ def grid_sampler(
     Returns:
         output (Tensor): output Tensor
     """
-    return _grid_sampler(
-        input, grid, _MODE[interpolation_mode], _PAD[padding_mode], align_corners
-    )
-
+    if grid.dim() == 4:
+        return _grid_sampler2d(
+            input, grid, _MODE[interpolation_mode], _PAD[padding_mode], align_corners
+        )
+    elif grid.dim() == 5:
+        return _grid_sampler3d(
+            input, grid, _MODE[interpolation_mode], _PAD[padding_mode], align_corners
+        )
+    else:
+        raise RuntimeError
 
 def grid_sampler2(
     input: Tensor,
@@ -235,6 +290,13 @@ def grid_sampler2(
     Returns:
         output (Tensor): output Tensor
     """
-    return _grid_sampler2(
-        input, grid, _MODE[interpolation_mode], _PAD[padding_mode], align_corners
-    )
+    if grid.dim() == 4:
+        return _grid_sampler2d2(
+            input, grid, _MODE[interpolation_mode], _PAD[padding_mode], align_corners
+        )
+    elif grid.dim() == 5:
+        return _grid_sampler3d2(
+            input, grid, _MODE[interpolation_mode], _PAD[padding_mode], align_corners
+        )
+    else:
+        raise RuntimeError

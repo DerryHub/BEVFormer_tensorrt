@@ -10,26 +10,36 @@
 #include <stdexcept>
 
 using trt_plugin::GridSamplerPlugin;
-using trt_plugin::GridSamplerPluginCreator;
-using trt_plugin::GridSamplerPluginCreator2;
+using trt_plugin::GridSampler2DPluginCreator;
+using trt_plugin::GridSampler2DPluginCreator2;
+using trt_plugin::GridSampler3DPluginCreator;
+using trt_plugin::GridSampler3DPluginCreator2;
 using namespace nvinfer1;
 using namespace nvinfer1::plugin;
 
 namespace {
 constexpr char const *GS_PLUGIN_VERSION{"1"};
-constexpr char const *GS_PLUGIN_NAME{"GridSamplerTRT"};
-constexpr char const *GS_PLUGIN_NAME2{"GridSamplerTRT2"};
+constexpr char const *GS2D_PLUGIN_NAME{"GridSampler2DTRT"};
+constexpr char const *GS2D_PLUGIN_NAME2{"GridSampler2DTRT2"};
+constexpr char const *GS3D_PLUGIN_NAME{"GridSampler3DTRT"};
+constexpr char const *GS3D_PLUGIN_NAME2{"GridSampler3DTRT2"};
 } // namespace
 
-PluginFieldCollection GridSamplerPluginCreator::mFC{};
-std::vector<PluginField> GridSamplerPluginCreator::mPluginAttributes;
+PluginFieldCollection GridSampler2DPluginCreator::mFC{};
+std::vector<PluginField> GridSampler2DPluginCreator::mPluginAttributes;
 
-PluginFieldCollection GridSamplerPluginCreator2::mFC{};
-std::vector<PluginField> GridSamplerPluginCreator2::mPluginAttributes;
+PluginFieldCollection GridSampler2DPluginCreator2::mFC{};
+std::vector<PluginField> GridSampler2DPluginCreator2::mPluginAttributes;
+
+PluginFieldCollection GridSampler3DPluginCreator::mFC{};
+std::vector<PluginField> GridSampler3DPluginCreator::mPluginAttributes;
+
+PluginFieldCollection GridSampler3DPluginCreator2::mFC{};
+std::vector<PluginField> GridSampler3DPluginCreator2::mPluginAttributes;
 
 GridSamplerPlugin::GridSamplerPlugin(int mode, int paddingMode,
-                                     bool alignCorners, bool use_h2)
-    : mAlignCorners(alignCorners), use_h2(use_h2) {
+                                     bool alignCorners, bool use_h2, bool _3D)
+    : mAlignCorners(alignCorners), use_h2(use_h2), m3D(_3D) {
   ASSERT(mode == 0 || mode == 1 || mode == 2)
   ASSERT(paddingMode == 0 || paddingMode == 1 || paddingMode == 2)
   switch (mode) {
@@ -61,8 +71,8 @@ GridSamplerPlugin::GridSamplerPlugin(int mode, int paddingMode,
 }
 
 GridSamplerPlugin::GridSamplerPlugin(const void *serialData,
-                                     size_t serialLength, bool use_h2)
-    : use_h2(use_h2) {
+                                     size_t serialLength, bool use_h2, bool _3D)
+    : use_h2(use_h2), m3D(_3D) {
   deserialize_value(&serialData, &serialLength, &mMode);
   deserialize_value(&serialData, &serialLength, &mPaddingMode);
   deserialize_value(&serialData, &serialLength, &mAlignCorners);
@@ -118,7 +128,7 @@ int32_t GridSamplerPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
     break;
   case DataType::kHALF:
     if (use_h2) {
-      grid_sample<__half2>(
+        grid_sample<__half2>(
           (__half2 *)outputs[0], (__half2 *)inputs[0], (__half2 *)inputs[1],
           &(output_dims.d[0]), &(input_dims.d[0]), &(grid_dims.d[0]),
           input_dims.nbDims, mMode, mPaddingMode, mAlignCorners, stream);
@@ -150,6 +160,10 @@ bool GridSamplerPlugin::supportsFormatCombination(
     int32_t pos, const nvinfer1::PluginTensorDesc *inOut, int32_t nbInputs,
     int32_t nbOutputs) noexcept {
   if (pos == 0) {
+      if (use_h2 && !m3D){
+          return (inOut[pos].type == nvinfer1::DataType::kFLOAT && inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
+                  (inOut[pos].type == nvinfer1::DataType::kHALF && inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
+      }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
             inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
@@ -160,7 +174,7 @@ bool GridSamplerPlugin::supportsFormatCombination(
 }
 
 char const *GridSamplerPlugin::getPluginType() const noexcept {
-  return use_h2 ? GS_PLUGIN_NAME2 : GS_PLUGIN_NAME;
+  return use_h2 ? (m3D ? GS3D_PLUGIN_NAME2 : GS2D_PLUGIN_NAME2) : (m3D ? GS3D_PLUGIN_NAME : GS2D_PLUGIN_NAME);
 }
 
 char const *GridSamplerPlugin::getPluginVersion() const noexcept {
@@ -199,7 +213,7 @@ IPluginV2DynamicExt *GridSamplerPlugin::clone() const noexcept {
       break;
     }
     auto *plugin =
-        new GridSamplerPlugin{mode, paddingMode, mAlignCorners, use_h2};
+        new GridSamplerPlugin{mode, paddingMode, mAlignCorners, use_h2, m3D};
     plugin->setPluginNamespace(mPluginNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -239,7 +253,7 @@ void GridSamplerPlugin::configurePlugin(
         PLUGIN_ASSERT(!(mMode == GridSamplerInterpolation::Bicubic &&
                         in[0].desc.dims.nbDims != 4))}
 
-GridSamplerPluginCreator::GridSamplerPluginCreator() {
+GridSampler2DPluginCreator::GridSampler2DPluginCreator() {
   mPluginAttributes.clear();
   mPluginAttributes.emplace_back(
       PluginField("interpolation_mode", nullptr, PluginFieldType::kINT32, 1));
@@ -252,20 +266,20 @@ GridSamplerPluginCreator::GridSamplerPluginCreator() {
   mFC.fields = mPluginAttributes.data();
 }
 
-char const *GridSamplerPluginCreator::getPluginName() const noexcept {
-  return GS_PLUGIN_NAME;
+char const *GridSampler2DPluginCreator::getPluginName() const noexcept {
+  return GS2D_PLUGIN_NAME;
 }
 
-char const *GridSamplerPluginCreator::getPluginVersion() const noexcept {
+char const *GridSampler2DPluginCreator::getPluginVersion() const noexcept {
   return GS_PLUGIN_VERSION;
 }
 
 PluginFieldCollection const *
-GridSamplerPluginCreator::getFieldNames() noexcept {
+GridSampler2DPluginCreator::getFieldNames() noexcept {
   return &mFC;
 }
 
-IPluginV2DynamicExt *GridSamplerPluginCreator::createPlugin(
+IPluginV2DynamicExt *GridSampler2DPluginCreator::createPlugin(
     const char *name, const nvinfer1::PluginFieldCollection *fc) noexcept {
   try {
     int mode, paddingMode;
@@ -286,7 +300,7 @@ IPluginV2DynamicExt *GridSamplerPluginCreator::createPlugin(
     }
 
     auto *plugin =
-        new GridSamplerPlugin(mode, paddingMode, alignCorners, false);
+        new GridSamplerPlugin(mode, paddingMode, alignCorners, false, false);
     plugin->setPluginNamespace(mNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -296,10 +310,10 @@ IPluginV2DynamicExt *GridSamplerPluginCreator::createPlugin(
   return nullptr;
 }
 
-IPluginV2DynamicExt *GridSamplerPluginCreator::deserializePlugin(
+IPluginV2DynamicExt *GridSampler2DPluginCreator::deserializePlugin(
     const char *name, const void *serialData, size_t serialLength) noexcept {
   try {
-    auto *plugin = new GridSamplerPlugin{serialData, serialLength, false};
+    auto *plugin = new GridSamplerPlugin{serialData, serialLength, false, false};
     plugin->setPluginNamespace(mNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -309,7 +323,7 @@ IPluginV2DynamicExt *GridSamplerPluginCreator::deserializePlugin(
   return nullptr;
 }
 
-GridSamplerPluginCreator2::GridSamplerPluginCreator2() {
+GridSampler2DPluginCreator2::GridSampler2DPluginCreator2() {
   mPluginAttributes.clear();
   mPluginAttributes.emplace_back(
       PluginField("interpolation_mode", nullptr, PluginFieldType::kINT32, 1));
@@ -322,20 +336,20 @@ GridSamplerPluginCreator2::GridSamplerPluginCreator2() {
   mFC.fields = mPluginAttributes.data();
 }
 
-char const *GridSamplerPluginCreator2::getPluginName() const noexcept {
-  return GS_PLUGIN_NAME2;
+char const *GridSampler2DPluginCreator2::getPluginName() const noexcept {
+  return GS2D_PLUGIN_NAME2;
 }
 
-char const *GridSamplerPluginCreator2::getPluginVersion() const noexcept {
+char const *GridSampler2DPluginCreator2::getPluginVersion() const noexcept {
   return GS_PLUGIN_VERSION;
 }
 
 PluginFieldCollection const *
-GridSamplerPluginCreator2::getFieldNames() noexcept {
+GridSampler2DPluginCreator2::getFieldNames() noexcept {
   return &mFC;
 }
 
-IPluginV2DynamicExt *GridSamplerPluginCreator2::createPlugin(
+IPluginV2DynamicExt *GridSampler2DPluginCreator2::createPlugin(
     const char *name, const nvinfer1::PluginFieldCollection *fc) noexcept {
   try {
     int mode, paddingMode;
@@ -355,7 +369,7 @@ IPluginV2DynamicExt *GridSamplerPluginCreator2::createPlugin(
       }
     }
 
-    auto *plugin = new GridSamplerPlugin(mode, paddingMode, alignCorners, true);
+    auto *plugin = new GridSamplerPlugin(mode, paddingMode, alignCorners, true, false);
     plugin->setPluginNamespace(mNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -365,10 +379,10 @@ IPluginV2DynamicExt *GridSamplerPluginCreator2::createPlugin(
   return nullptr;
 }
 
-IPluginV2DynamicExt *GridSamplerPluginCreator2::deserializePlugin(
+IPluginV2DynamicExt *GridSampler2DPluginCreator2::deserializePlugin(
     const char *name, const void *serialData, size_t serialLength) noexcept {
   try {
-    auto *plugin = new GridSamplerPlugin{serialData, serialLength, true};
+    auto *plugin = new GridSamplerPlugin{serialData, serialLength, true, false};
     plugin->setPluginNamespace(mNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -378,5 +392,147 @@ IPluginV2DynamicExt *GridSamplerPluginCreator2::deserializePlugin(
   return nullptr;
 }
 
-REGISTER_TENSORRT_PLUGIN(GridSamplerPluginCreator);
-REGISTER_TENSORRT_PLUGIN(GridSamplerPluginCreator2);
+GridSampler3DPluginCreator::GridSampler3DPluginCreator() {
+    mPluginAttributes.clear();
+    mPluginAttributes.emplace_back(
+            PluginField("interpolation_mode", nullptr, PluginFieldType::kINT32, 1));
+    mPluginAttributes.emplace_back(
+            PluginField("padding_mode", nullptr, PluginFieldType::kINT32, 1));
+    mPluginAttributes.emplace_back(
+            PluginField("align_corners", nullptr, PluginFieldType::kINT32, 1));
+
+    mFC.nbFields = mPluginAttributes.size();
+    mFC.fields = mPluginAttributes.data();
+}
+
+char const *GridSampler3DPluginCreator::getPluginName() const noexcept {
+    return GS3D_PLUGIN_NAME;
+}
+
+char const *GridSampler3DPluginCreator::getPluginVersion() const noexcept {
+    return GS_PLUGIN_VERSION;
+}
+
+PluginFieldCollection const *
+GridSampler3DPluginCreator::getFieldNames() noexcept {
+    return &mFC;
+}
+
+IPluginV2DynamicExt *GridSampler3DPluginCreator::createPlugin(
+        const char *name, const nvinfer1::PluginFieldCollection *fc) noexcept {
+    try {
+        int mode, paddingMode;
+        bool alignCorners;
+        PluginField const *fields = fc->fields;
+        for (int i = 0; i < fc->nbFields; i++) {
+            char const *attrName = fields[i].name;
+            if (!strcmp(attrName, "interpolation_mode")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                mode = *(static_cast<int const *>(fields[i].data));
+            } else if (!strcmp(attrName, "padding_mode")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                paddingMode = *(static_cast<int const *>(fields[i].data));
+            } else if (!strcmp(attrName, "align_corners")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                alignCorners = (bool)(*(static_cast<int const *>(fields[i].data)));
+            }
+        }
+
+        auto *plugin =
+                new GridSamplerPlugin(mode, paddingMode, alignCorners, false, true);
+        plugin->setPluginNamespace(mNamespace.c_str());
+        plugin->initialize();
+        return plugin;
+    } catch (std::exception const &e) {
+        caughtError(e);
+    }
+    return nullptr;
+}
+
+IPluginV2DynamicExt *GridSampler3DPluginCreator::deserializePlugin(
+        const char *name, const void *serialData, size_t serialLength) noexcept {
+    try {
+        auto *plugin = new GridSamplerPlugin{serialData, serialLength, false, true};
+        plugin->setPluginNamespace(mNamespace.c_str());
+        plugin->initialize();
+        return plugin;
+    } catch (std::exception const &e) {
+        caughtError(e);
+    }
+    return nullptr;
+}
+
+GridSampler3DPluginCreator2::GridSampler3DPluginCreator2() {
+    mPluginAttributes.clear();
+    mPluginAttributes.emplace_back(
+            PluginField("interpolation_mode", nullptr, PluginFieldType::kINT32, 1));
+    mPluginAttributes.emplace_back(
+            PluginField("padding_mode", nullptr, PluginFieldType::kINT32, 1));
+    mPluginAttributes.emplace_back(
+            PluginField("align_corners", nullptr, PluginFieldType::kINT32, 1));
+
+    mFC.nbFields = mPluginAttributes.size();
+    mFC.fields = mPluginAttributes.data();
+}
+
+char const *GridSampler3DPluginCreator2::getPluginName() const noexcept {
+    return GS3D_PLUGIN_NAME2;
+}
+
+char const *GridSampler3DPluginCreator2::getPluginVersion() const noexcept {
+    return GS_PLUGIN_VERSION;
+}
+
+PluginFieldCollection const *
+GridSampler3DPluginCreator2::getFieldNames() noexcept {
+    return &mFC;
+}
+
+IPluginV2DynamicExt *GridSampler3DPluginCreator2::createPlugin(
+        const char *name, const nvinfer1::PluginFieldCollection *fc) noexcept {
+    try {
+        int mode, paddingMode;
+        bool alignCorners;
+        PluginField const *fields = fc->fields;
+        for (int i = 0; i < fc->nbFields; i++) {
+            char const *attrName = fields[i].name;
+            if (!strcmp(attrName, "interpolation_mode")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                mode = *(static_cast<int const *>(fields[i].data));
+            } else if (!strcmp(attrName, "padding_mode")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                paddingMode = *(static_cast<int const *>(fields[i].data));
+            } else if (!strcmp(attrName, "align_corners")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                alignCorners = (bool)(*(static_cast<int const *>(fields[i].data)));
+            }
+        }
+
+        auto *plugin = new GridSamplerPlugin(mode, paddingMode, alignCorners, true, true);
+        plugin->setPluginNamespace(mNamespace.c_str());
+        plugin->initialize();
+        return plugin;
+    } catch (std::exception const &e) {
+        caughtError(e);
+    }
+    return nullptr;
+}
+
+IPluginV2DynamicExt *GridSampler3DPluginCreator2::deserializePlugin(
+        const char *name, const void *serialData, size_t serialLength) noexcept {
+    try {
+        auto *plugin = new GridSamplerPlugin{serialData, serialLength, true, true};
+        plugin->setPluginNamespace(mNamespace.c_str());
+        plugin->initialize();
+        return plugin;
+    } catch (std::exception const &e) {
+        caughtError(e);
+    }
+    return nullptr;
+}
+
+
+REGISTER_TENSORRT_PLUGIN(GridSampler2DPluginCreator);
+REGISTER_TENSORRT_PLUGIN(GridSampler2DPluginCreator2);
+REGISTER_TENSORRT_PLUGIN(GridSampler3DPluginCreator);
+REGISTER_TENSORRT_PLUGIN(GridSampler3DPluginCreator2);
