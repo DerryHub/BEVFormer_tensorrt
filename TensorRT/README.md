@@ -4,7 +4,7 @@
 
 ### Grid Sampler
 
-|      OP Name      |                          Attributes                          |        Inputs         |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Data Type      | Test Device |
+|      OP Name      |                          Attributes                          |        Inputs         |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Tensor Format  | Test Device |
 | :---------------: | :----------------------------------------------------------: | :-------------------: | :-------: | :--------: | :--------: | :-------: | -------------- | :---------: |
 | GridSampler2DTRT  | interpolation_mode: int<br />padding_mode: int<br />align_corners: int | input: T<br />grid: T | output: T |     x1     |    x2.0    |  nv_half  | kLinear        | RTX 2080Ti  |
 | GridSampler2DTRT2 | interpolation_mode: int<br />padding_mode: int<br />align_corners: int | input: T<br />grid: T | output: T |     x1     |    x3.1    | nv_half2  | kLinear, kCHW2 | RTX 2080Ti  |
