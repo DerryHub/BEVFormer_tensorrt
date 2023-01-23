@@ -6,13 +6,13 @@ model = dict(
         dcn=dict(type="DCNv2P", deform_groups=1, fallback_on_stride=False)
     ),
     pts_bbox_head=dict(
-        type="BEVFormerHeadTRT",
+        type="BEVFormerHeadTRTP",
         transformer=dict(
             type="PerceptionTransformerTRTP",
             encoder=dict(
-                type="BEVFormerEncoderTRT",
+                type="BEVFormerEncoderTRTP",
                 transformerlayers=dict(
-                    type="BEVFormerLayerTRT",
+                    type="BEVFormerLayerTRTP",
                     attn_cfgs=[
                         dict(
                             type="TemporalSelfAttentionTRTP",
@@ -20,7 +20,7 @@ model = dict(
                             num_levels=1,
                         ),
                         dict(
-                            type="SpatialCrossAttentionTRT",
+                            type="SpatialCrossAttentionTRTP",
                             pc_range={{_base_.point_cloud_range}},
                             deformable_attention=dict(
                                 type="MSDeformableAttention3DTRTP",
@@ -35,7 +35,7 @@ model = dict(
                 ),
             ),
             decoder=dict(
-                type="DetectionTransformerDecoder",
+                type="DetectionTransformerDecoderTRTP",
                 transformerlayers=dict(
                     type="DetrTransformerDecoderLayer",
                     attn_cfgs=[

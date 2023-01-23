@@ -190,3 +190,94 @@ class BEVFormerHeadTRT(BEVFormerHead):
     def get_bboxes_trt(self, outputs_classes, outputs_coords, img_metas, rescale=False):
         dic = {"all_cls_scores": outputs_classes, "all_bbox_preds": outputs_coords}
         return self.get_bboxes(dic, img_metas, rescale=rescale)
+
+
+@HEADS.register_module()
+class BEVFormerHeadTRTP(BEVFormerHeadTRT):
+    """Head of Detr3D.
+        Args:
+            with_box_refine (bool): Whether to refine the reference points
+                in the decoder. Defaults to False.
+            as_two_stage (bool) : Whether to generate the proposal from
+                the outputs of encoder.
+            transformer (obj:`ConfigDict`): ConfigDict is used for building
+                the Encoder and Decoder.
+            bev_h, bev_w (int): spatial shape of BEV queries.
+        """
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        super(BEVFormerHeadTRTP, self).__init__(*args, **kwargs)
+
+    def forward_trt(
+        self, mlvl_feats, prev_bev, can_bus, lidar2img, image_shape, use_prev_bev
+    ):
+        dtype = mlvl_feats[0].dtype
+        object_query_embeds = self.query_embedding.weight
+        bev_queries = self.bev_embedding.weight
+
+        bev_mask = torch.zeros(
+            (1, self.bev_h, self.bev_w), device=bev_queries.device
+        ).to(dtype)
+        bev_pos = self.positional_encoding(bev_mask)
+
+        outputs = self.transformer.forward_trt(
+            mlvl_feats,
+            bev_queries, # [200*200, 256]
+            object_query_embeds, # [900, 512]
+            self.bev_h,
+            self.bev_w,
+            grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
+            bev_pos=bev_pos, # [1, 256, 200, 200]
+            reg_branches=self.reg_branches # self.reg_branches
+            if self.with_box_refine
+            else None,  # noqa:E501
+            cls_branches=self.cls_branches if self.as_two_stage else None, # None
+            can_bus=can_bus,
+            lidar2img=lidar2img,
+            prev_bev=prev_bev,
+            image_shape=image_shape,
+            use_prev_bev=use_prev_bev,
+        )
+
+        bev_embed, hs, init_reference, inter_references = outputs
+        init_reference = init_reference.view(1, self.num_query, 3)
+        inter_references = inter_references.view(-1, 1, self.num_query, 3)
+        hs = hs.view(-1, 1, self.num_query, self.embed_dims)
+
+        outputs_classes = []
+        outputs_coords = []
+        for lvl in range(int(hs.shape[0])):
+            if lvl == 0:
+                reference = init_reference
+            else:
+                reference = inter_references[lvl - 1]
+            reference = inverse_sigmoid(reference)
+            outputs_class = self.cls_branches[lvl](hs[lvl])
+            outputs_coord = self.reg_branches[lvl](hs[lvl])
+
+            assert reference.shape[-1] == 3
+            outputs_coord[..., 0:2] += reference[..., 0:2]
+            outputs_coord[..., 0:2] = outputs_coord[..., 0:2].sigmoid()
+            outputs_coord[..., 4:5] += reference[..., 2:3]
+            outputs_coord[..., 4:5] = outputs_coord[..., 4:5].sigmoid()
+            outputs_coord[..., 0:1] = (
+                outputs_coord[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0]
+            )
+            outputs_coord[..., 1:2] = (
+                outputs_coord[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1]
+            )
+            outputs_coord[..., 4:5] = (
+                outputs_coord[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2]
+            )
+
+            outputs_classes.append(outputs_class)
+            outputs_coords.append(outputs_coord)
+
+        outputs_classes = torch.stack(outputs_classes)
+        outputs_coords = torch.stack(outputs_coords)
+
+        return bev_embed, outputs_classes, outputs_coords

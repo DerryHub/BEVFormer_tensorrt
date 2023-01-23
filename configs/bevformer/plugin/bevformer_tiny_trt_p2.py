@@ -3,13 +3,13 @@ _base_ = ["../bevformer_tiny.py", "../../_base_/det2trt.py"]
 model = dict(
     type="BEVFormerTRT",
     pts_bbox_head=dict(
-        type="BEVFormerHeadTRT",
+        type="BEVFormerHeadTRTP",
         transformer=dict(
             type="PerceptionTransformerTRTP2",
             encoder=dict(
-                type="BEVFormerEncoderTRT",
+                type="BEVFormerEncoderTRTP",
                 transformerlayers=dict(
-                    type="BEVFormerLayerTRT",
+                    type="BEVFormerLayerTRTP",
                     attn_cfgs=[
                         dict(
                             type="TemporalSelfAttentionTRTP2",
@@ -17,7 +17,7 @@ model = dict(
                             num_levels=1,
                         ),
                         dict(
-                            type="SpatialCrossAttentionTRT",
+                            type="SpatialCrossAttentionTRTP",
                             pc_range={{_base_.point_cloud_range}},
                             deformable_attention=dict(
                                 type="MSDeformableAttention3DTRTP2",
@@ -32,7 +32,7 @@ model = dict(
                 ),
             ),
             decoder=dict(
-                type="DetectionTransformerDecoder",
+                type="DetectionTransformerDecoderTRTP",
                 transformerlayers=dict(
                     type="DetrTransformerDecoderLayer",
                     attn_cfgs=[

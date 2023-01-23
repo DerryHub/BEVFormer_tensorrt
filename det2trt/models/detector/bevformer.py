@@ -1,3 +1,4 @@
+import torch
 from mmdet.models import DETECTORS
 from third_party.bevformer import BEVFormer
 from third_party.bevformer.core.bbox import bbox3d2result
@@ -36,6 +37,7 @@ class BEVFormerTRT(BEVFormer):
     def forward_trt(self, image, prev_bev, use_prev_bev, can_bus, lidar2img):
         image_shape = image.shape[-2:]
         img_feats = self.extract_feat(img=image)
+        assert len(img_feats[0]) == 1
         bev_embed, outputs_classes, outputs_coords = self.pts_bbox_head.forward_trt(
             img_feats, prev_bev, can_bus, lidar2img, image_shape, use_prev_bev
         )

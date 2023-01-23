@@ -18,7 +18,7 @@ model = dict(
                             linear_cfg=dict(type="LinearQ"),
                         ),
                         dict(
-                            type="SpatialCrossAttentionTRT",
+                            type="SpatialCrossAttentionTRTP",
                             pc_range={{_base_.point_cloud_range}},
                             deformable_attention=dict(
                                 type="MSDeformableAttention3DTRTP",
