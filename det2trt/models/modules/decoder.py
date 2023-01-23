@@ -33,7 +33,7 @@ def inverse_sigmoid(x, eps=1e-5):
             function of sigmoid, has same
             shape with input.
     """
-    x = x.clamp(min=eps, max=1-eps)
+    x = x.clamp(min=eps, max=1 - eps)
     return torch.log(x / (1 - x))
 
 
@@ -97,9 +97,9 @@ class DetectionTransformerDecoderTRTP(DetectionTransformerDecoder):
                 reference_points = torch.cat(
                     [
                         tmp[..., :2] + inverse_sigmoid(reference_points[..., :2]),
-                        tmp[..., 4:5] + inverse_sigmoid(reference_points[..., 2:3])
+                        tmp[..., 4:5] + inverse_sigmoid(reference_points[..., 2:3]),
                     ],
-                    dim=-1
+                    dim=-1,
                 ).sigmoid()
 
             if self.return_intermediate:
@@ -370,6 +370,7 @@ class CustomMSDeformableAttentionTRTP(CustomMSDeformableAttentionTRT):
         init_cfg (obj:`mmcv.ConfigDict`): The Config for initialization.
             Default: None.
     """
+
     def __init__(self, *args, **kwargs):
         super(CustomMSDeformableAttentionTRTP, self).__init__(*args, **kwargs)
         self.multi_scale_deformable_attn = multi_scale_deformable_attn
@@ -460,10 +461,9 @@ class CustomMSDeformableAttentionTRTP(CustomMSDeformableAttentionTRT):
             offset_normalizer = torch.stack(
                 [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1
             )
-            sampling_locations = (
-                reference_points.view(1, -1, 1, 1, 1, 2)
-                + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
-            )
+            sampling_locations = reference_points.view(
+                1, -1, 1, 1, 1, 2
+            ) + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
         else:
             raise ValueError(
                 f"Last dim of reference_points must be"
@@ -509,6 +509,7 @@ class CustomMSDeformableAttentionTRTP2(CustomMSDeformableAttentionTRTP):
         init_cfg (obj:`mmcv.ConfigDict`): The Config for initialization.
             Default: None.
     """
+
     def __init__(self, *args, **kwargs):
         super(CustomMSDeformableAttentionTRTP2, self).__init__(*args, **kwargs)
         self.multi_scale_deformable_attn = multi_scale_deformable_attn2

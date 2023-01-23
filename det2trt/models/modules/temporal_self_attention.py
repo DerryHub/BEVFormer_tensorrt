@@ -342,6 +342,7 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
         num_bev_queue (int): In this version, we only use one history BEV and one currenct BEV.
          the length of BEV queue is 2.
     """
+
     def __init__(self, *args, **kwargs):
         super(TemporalSelfAttentionTRTP, self).__init__(*args, **kwargs)
         self.multi_scale_deformable_attn = multi_scale_deformable_attn
@@ -415,7 +416,9 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
         if key_padding_mask is not None:
             value = value.masked_fill(key_padding_mask[..., None], 0.0)
 
-        value = value.view(self.num_bev_queue, -1, self.num_heads, self.embed_dims // self.num_heads)
+        value = value.view(
+            self.num_bev_queue, -1, self.num_heads, self.embed_dims // self.num_heads
+        )
 
         sampling_offsets = self.sampling_offsets(query)
         sampling_offsets = sampling_offsets.view(
@@ -437,12 +440,7 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
         attention_weights = attention_weights.softmax(-1)
 
         attention_weights = attention_weights.view(
-            1,
-            -1,
-            self.num_heads,
-            self.num_bev_queue,
-            self.num_levels,
-            self.num_points,
+            1, -1, self.num_heads, self.num_bev_queue, self.num_levels, self.num_points,
         )
 
         attention_weights = (
@@ -453,25 +451,20 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
                 self.num_heads,
                 self.num_levels,
                 self.num_points,
-            ).contiguous()
+            )
+            .contiguous()
         )
         sampling_offsets = sampling_offsets.permute(0, 3, 1, 2, 4, 5, 6).reshape(
-            self.num_bev_queue,
-            -1,
-            self.num_heads,
-            self.num_levels,
-            self.num_points,
-            2,
+            self.num_bev_queue, -1, self.num_heads, self.num_levels, self.num_points, 2,
         )
 
         if reference_points.shape[-1] == 2:
             offset_normalizer = torch.stack(
                 [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1
             )
-            sampling_locations = (
-                reference_points.unsqueeze(2).unsqueeze(4)
-                + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
-            )
+            sampling_locations = reference_points.unsqueeze(2).unsqueeze(
+                4
+            ) + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
         else:
             raise ValueError(
                 f"Last dim of reference_points must be"
@@ -522,6 +515,7 @@ class TemporalSelfAttentionTRTP2(TemporalSelfAttentionTRTP):
         num_bev_queue (int): In this version, we only use one history BEV and one currenct BEV.
          the length of BEV queue is 2.
     """
+
     def __init__(self, *args, **kwargs):
         super(TemporalSelfAttentionTRTP2, self).__init__(*args, **kwargs)
         self.multi_scale_deformable_attn = multi_scale_deformable_attn2

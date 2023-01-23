@@ -192,9 +192,7 @@ class SpatialCrossAttentionTRTP(SpatialCrossAttentionTRT):
     """
 
     def __init__(
-        self,
-        *args,
-        **kwargs,
+        self, *args, **kwargs,
     ):
         super(SpatialCrossAttentionTRTP, self).__init__(*args, **kwargs)
 
@@ -688,6 +686,7 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
         init_cfg (obj:`mmcv.ConfigDict`): The Config for initialization.
             Default: None.
     """
+
     def __init__(self, *args, **kwargs):
         super(MSDeformableAttention3DTRTP, self).__init__(*args, **kwargs)
         self.multi_scale_deformable_attn = multi_scale_deformable_attn
@@ -745,7 +744,9 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
 
         assert self.batch_first
 
-        value = self.value_proj(value).view(6, -1, self.num_heads, self.embed_dims // self.num_heads)
+        value = self.value_proj(value).view(
+            6, -1, self.num_heads, self.embed_dims // self.num_heads
+        )
 
         assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == value.shape[1]
         assert key_padding_mask is None
@@ -775,13 +776,16 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
             )
 
             reference_points = reference_points.view(6, -1, 1, 1, 1, 4, 2)
-            sampling_offsets = (
-                sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 2)
+            sampling_offsets = sampling_offsets / offset_normalizer.view(
+                1, 1, 1, -1, 1, 2
             )
             sampling_offsets = sampling_offsets.view(
-                6, -1, self.num_heads, self.num_levels, self.num_points // 4, 4, 2)
+                6, -1, self.num_heads, self.num_levels, self.num_points // 4, 4, 2
+            )
             sampling_locations = reference_points + sampling_offsets
-            sampling_locations = sampling_locations.view(6, -1, self.num_heads, self.num_levels, self.num_points, 2)
+            sampling_locations = sampling_locations.view(
+                6, -1, self.num_heads, self.num_levels, self.num_points, 2
+            )
         else:
             raise ValueError(
                 f"Last dim of reference_points must be"
@@ -823,6 +827,7 @@ class MSDeformableAttention3DTRTP2(MSDeformableAttention3DTRTP):
         init_cfg (obj:`mmcv.ConfigDict`): The Config for initialization.
             Default: None.
     """
+
     def __init__(self, *args, **kwargs):
         super(MSDeformableAttention3DTRTP2, self).__init__(*args, **kwargs)
         self.multi_scale_deformable_attn = multi_scale_deformable_attn2

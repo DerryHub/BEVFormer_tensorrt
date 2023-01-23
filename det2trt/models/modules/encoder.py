@@ -168,33 +168,27 @@ class BEVFormerEncoderTRTP(BEVFormerEncoderTRT):
 
     @staticmethod
     def get_reference_points_3d(
-            H,
-            W,
-            Z=8,
-            num_points_in_pillar=4,
-            bs=1,
-            device="cuda",
-            dtype=torch.float,
+        H, W, Z=8, num_points_in_pillar=4, bs=1, device="cuda", dtype=torch.float,
     ):
         zs = (
-                torch.linspace(
-                    0.5, Z - 0.5, num_points_in_pillar, dtype=dtype, device=device
-                )
-                .view(-1, 1, 1)
-                .repeat(1, H, W)
-                / Z
+            torch.linspace(
+                0.5, Z - 0.5, num_points_in_pillar, dtype=dtype, device=device
+            )
+            .view(-1, 1, 1)
+            .repeat(1, H, W)
+            / Z
         )
         xs = (
-                torch.linspace(0.5, W - 0.5, W, dtype=dtype, device=device)
-                .view(1, 1, W)
-                .repeat(num_points_in_pillar, H, 1)
-                / W
+            torch.linspace(0.5, W - 0.5, W, dtype=dtype, device=device)
+            .view(1, 1, W)
+            .repeat(num_points_in_pillar, H, 1)
+            / W
         )
         ys = (
-                torch.linspace(0.5, H - 0.5, H, dtype=dtype, device=device)
-                .view(1, H, 1)
-                .repeat(num_points_in_pillar, 1, W)
-                / H
+            torch.linspace(0.5, H - 0.5, H, dtype=dtype, device=device)
+            .view(1, H, 1)
+            .repeat(num_points_in_pillar, 1, W)
+            / H
         )
 
         ref_3d = torch.stack((xs, ys, zs), -1).view(1, 4, -1, 3)
@@ -204,8 +198,13 @@ class BEVFormerEncoderTRTP(BEVFormerEncoderTRT):
 
         reference_points = reference_points * torch.tensor(
             [
-                pc_range[3] - pc_range[0], pc_range[4] - pc_range[1], pc_range[5] - pc_range[2]
-            ], dtype=reference_points.dtype, device=reference_points.device).view(1, 1, 1, 3) + torch.tensor(
+                pc_range[3] - pc_range[0],
+                pc_range[4] - pc_range[1],
+                pc_range[5] - pc_range[2],
+            ],
+            dtype=reference_points.dtype,
+            device=reference_points.device,
+        ).view(1, 1, 1, 3) + torch.tensor(
             pc_range[:3], dtype=reference_points.dtype, device=reference_points.device
         )
 
@@ -213,15 +212,25 @@ class BEVFormerEncoderTRTP(BEVFormerEncoderTRT):
             (reference_points, torch.ones_like(reference_points[..., :1])), -1
         )
 
-        reference_points = reference_points.view(self.num_points_in_pillar, 1, 1, -1, 4, 1)
+        reference_points = reference_points.view(
+            self.num_points_in_pillar, 1, 1, -1, 4, 1
+        )
         lidar2img = lidar2img.view(1, 1, 6, 1, 4, 4)
         reference_points_cam = torch.matmul(lidar2img, reference_points).squeeze(-1)
 
         eps = 1e-5
         mask_zeros = reference_points_cam.new_zeros(
-            self.num_points_in_pillar, 1, 6, int(reference_points_cam.shape[3]), 1, dtype=torch.float32)
+            self.num_points_in_pillar,
+            1,
+            6,
+            int(reference_points_cam.shape[3]),
+            1,
+            dtype=torch.float32,
+        )
         mask_ones = mask_zeros + 1
-        bev_mask = torch.where(reference_points_cam[..., 2:3] > eps, mask_ones, mask_zeros)
+        bev_mask = torch.where(
+            reference_points_cam[..., 2:3] > eps, mask_ones, mask_zeros
+        )
         reference_points_cam = reference_points_cam[..., 0:2] / torch.max(
             reference_points_cam[..., 2:3],
             torch.ones_like(reference_points_cam[..., 2:3]) * eps,
@@ -230,10 +239,18 @@ class BEVFormerEncoderTRTP(BEVFormerEncoderTRT):
         reference_points_cam[..., 0] /= image_shape[1]
         reference_points_cam[..., 1] /= image_shape[0]
 
-        bev_mask *= torch.where(reference_points_cam[..., 1:2] > 0.0, mask_ones, mask_zeros)
-        bev_mask *= torch.where(reference_points_cam[..., 1:2] < 1.0, mask_ones, mask_zeros)
-        bev_mask *= torch.where(reference_points_cam[..., 0:1] < 1.0, mask_ones, mask_zeros)
-        bev_mask *= torch.where(reference_points_cam[..., 0:1] > 0.0, mask_ones, mask_zeros)
+        bev_mask *= torch.where(
+            reference_points_cam[..., 1:2] > 0.0, mask_ones, mask_zeros
+        )
+        bev_mask *= torch.where(
+            reference_points_cam[..., 1:2] < 1.0, mask_ones, mask_zeros
+        )
+        bev_mask *= torch.where(
+            reference_points_cam[..., 0:1] < 1.0, mask_ones, mask_zeros
+        )
+        bev_mask *= torch.where(
+            reference_points_cam[..., 0:1] > 0.0, mask_ones, mask_zeros
+        )
 
         reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4)
         bev_mask = (1 - (1 - bev_mask).prod(0)).view(6, -1, 1)
@@ -486,9 +503,7 @@ class BEVFormerLayerTRT(BEVFormerLayer):
 @TRANSFORMER_LAYER.register_module()
 class BEVFormerLayerTRTP(BEVFormerLayerTRT):
     def __init__(
-        self,
-        *args,
-        **kwargs,
+        self, *args, **kwargs,
     ):
         super(BEVFormerLayerTRTP, self).__init__(*args, **kwargs)
 
@@ -569,7 +584,9 @@ class BEVFormerLayerTRTP(BEVFormerLayerTRT):
 
         for layer in self.operation_order:
             if layer == "self_attn":
-                prev_bev = use_prev_bev * prev_bev + (1 - use_prev_bev) * query.repeat(2, 1, 1)
+                prev_bev = use_prev_bev * prev_bev + (1 - use_prev_bev) * query.repeat(
+                    2, 1, 1
+                )
                 query = self.attentions[attn_index].forward_trt(
                     query,
                     prev_bev,

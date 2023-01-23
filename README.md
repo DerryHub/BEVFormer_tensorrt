@@ -6,6 +6,7 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 
 ### BEVFormer
 
+
 #### BEVFormer PyTorch
 
 |                            Model                             |   Data   | Batch Size |          NDS/mAP          | FPS  | Size (MB) | Memory (MB) |  Device  |
