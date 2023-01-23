@@ -90,6 +90,21 @@ grid_sampler_unnormalize(__half2 coord, int size, bool align_corners) {
   }
 }
 
+__forceinline__ __device__ __half2
+grid_sampler_unnormalize_h2(__half2 coord, __half2 size, bool align_corners) {
+  if (align_corners) {
+    // unnormalize coord from [-10, 10] to [0, size - 1]
+    return __hmul2(
+        __hfma2(__float2half2_rn(0.5), coord, __float2half2_rn(5.)),
+        __hfma2(size, __float2half2_rn(0.1), __float2half2_rn(-0.1)));
+  } else {
+    // unnormalize coord from [-10, 10] to [-0.5, size - 0.5]
+    return __hfma2(__hfma2(__float2half2_rn(0.5), coord, __float2half2_rn(5.)),
+                   __hmul2(size, __float2half2_rn(0.1)),
+                   __float2half2_rn(-0.5));
+  }
+}
+
 // Clips coordinates to between 0 and clip_limit - 1
 template <typename scalar_t>
 __forceinline__ __device__ scalar_t clip_coordinates(scalar_t in,
@@ -109,6 +124,12 @@ template <>
 __forceinline__ __device__ __half2 clip_coordinates(__half2 in,
                                                     int clip_limit) {
   return __hmin2(__float2half2_rn(static_cast<float>(clip_limit - 1)),
+                 __hmax2(in, __float2half2_rn(0.)));
+}
+
+__forceinline__ __device__ __half2 clip_coordinates_h2(__half2 in,
+                                                       __half2 clip_limit) {
+  return __hmin2(__hadd2(clip_limit, __float2half2_rn(-1.f)),
                  __hmax2(in, __float2half2_rn(0.)));
 }
 #else
@@ -141,6 +162,12 @@ template <>
 __forceinline__ __device__ __half2 clip_coordinates(__half2 in,
                                                     int clip_limit) {
   return hmin2(__float2half2_rn(static_cast<float>(clip_limit - 1)),
+               hmax2(in, __float2half2_rn(0.)));
+}
+
+__forceinline__ __device__ __half2 clip_coordinates_h2(__half2 in,
+                                                       __half2 clip_limit) {
+  return hmin2(__hadd2(clip_limit, __float2half2_rn(-1.f)),
                hmax2(in, __float2half2_rn(0.)));
 }
 #endif
@@ -231,6 +258,30 @@ __forceinline__ __device__ __half2 reflect_coordinates(__half2 in,
   return __halves2half2(low, high);
 }
 
+__forceinline__ __device__ __half2 reflect_coordinates_h2(__half2 in,
+                                                          __half2 twice_low,
+                                                          __half2 twice_high) {
+  __half2 weight = __hne2(twice_low, twice_high);
+  __half2 min = __hmul2(twice_low, __float2half2_rn(0.5));
+  __half2 span = __hmul2(__hsub2(twice_high, twice_low), __float2half2_rn(0.5));
+  in = __habs2(__hsub2(in, min));
+
+  // `fmod` returns same sign as `in`, which is positive after the `fabs` above.
+  __half2 extra = hmod2(in, span);
+  __half2 flips_h2 = h2floor(__h2div(in, span));
+
+  flips_h2 = h2trunc(flips_h2);
+  flips_h2 = __heq2(__hmul2(h2rint(__hmul2(flips_h2, __float2half2_rn(0.5f))),
+                            __float2half2_rn(2.f)),
+                    flips_h2);
+  __half2 even = __hadd2(extra, min);
+  __half2 odd = __hadd2(__hsub2(span, extra), min);
+  flips_h2 = __hmul2(even, flips_h2) +
+             __hmul2(odd, __hsub2(__float2half2_rn(1.f), flips_h2));
+
+  return __hmul2(flips_h2, weight);
+}
+
 template <typename scalar_t>
 __forceinline__ __device__ scalar_t safe_downgrade_to_int_range(scalar_t x) {
   // -100.0 does not have special meaning. This is just to make sure
@@ -293,7 +344,41 @@ compute_coordinates(scalar_t coord, int size, GridSamplerPadding padding_mode,
   return coord;
 }
 
+static __forceinline__ __device__ __half2
+compute_coordinates_h2(__half2 coord, __half2 size,
+                       GridSamplerPadding padding_mode, bool align_corners) {
+  if (padding_mode == GridSamplerPadding::Border) {
+    // clip coordinates to image borders
+    coord = clip_coordinates_h2(coord, size);
+  } else if (padding_mode == GridSamplerPadding::Reflection) {
+    // reflect coordinates by image borders
+
+    if (align_corners) {
+      coord = reflect_coordinates_h2(
+          coord, __float2half2_rn(0.f),
+          __hfma2(size, __float2half2_rn(2.f), __float2half2_rn(-2.f)));
+    } else {
+      coord = reflect_coordinates_h2(
+          coord, __float2half2_rn(-1.f),
+          __hfma2(size, __float2half2_rn(2.f), __float2half2_rn(-1.f)));
+    }
+    // clip coordinates to image borders
+    coord = clip_coordinates_h2(coord, size);
+  }
+
+  coord = safe_downgrade_to_int_range(coord);
+  return coord;
+}
+
 // Computes the pixel source index value for a grid coordinate
+static __forceinline__ __device__ __half2 grid_sampler_compute_source_index_h2(
+    __half2 coord, __half2 size, const GridSamplerPadding padding_mode,
+    const bool align_corners) {
+  coord = grid_sampler_unnormalize_h2(coord, size, align_corners);
+  coord = compute_coordinates_h2(coord, size, padding_mode, align_corners);
+  return coord;
+}
+
 template <typename scalar_t>
 static __forceinline__ __device__ scalar_t grid_sampler_compute_source_index(
     scalar_t coord, int size, const GridSamplerPadding padding_mode,
@@ -468,6 +553,23 @@ __forceinline__ __device__ scalar_t get_value_bounded(
     return data[iy * sH + ix * sW];
   }
   return static_cast<scalar_t>(0.f);
+}
+
+__forceinline__ __device__ __half2 get_value_bounded_h2(
+    const __half2 *data, __half2 xy, int W, int H, int sW, int sH,
+    const GridSamplerPadding padding_mode, const bool align_corners) {
+
+  xy = compute_coordinates_h2(
+      xy, __floats2half2_rn(static_cast<float>(W), static_cast<float>(H)),
+      padding_mode, align_corners);
+
+  int ix = static_cast<int>(__low2float(xy));
+  int iy = static_cast<int>(__high2float(xy));
+
+  if (within_bounds_2d(iy, ix, H, W)) {
+    return data[iy * sH + ix * sW];
+  }
+  return __float2half2_rn(0.f);
 }
 
 __forceinline__ __device__ __half2 get_value_bounded_h2(
@@ -776,207 +878,137 @@ __global__ void grid_sampler_2d_kernel(
     __half2 *output, TensorDesc input_desc, TensorDesc grid_desc,
     TensorDesc output_desc, const GridSamplerInterpolation interpolation_mode,
     const GridSamplerPadding padding_mode, const bool align_corners) {
-  int C = input_desc.shape[1];
+  int C = (input_desc.shape[1] + 1) / 2;
   int inp_H = input_desc.shape[2];
   int inp_W = input_desc.shape[3];
   int out_H = grid_desc.shape[2];
   int out_W = grid_desc.shape[3];
-  int out_W_h = (out_W + 1) / 2;
-  int inp_sN = input_desc.stride[0];
   int inp_sC = input_desc.stride[1];
   int inp_sH = input_desc.stride[2];
   int inp_sW = input_desc.stride[3];
-  int grid_sN = grid_desc.stride[0];
-  int grid_sCoor = grid_desc.stride[1];
+  int inp_sN = inp_sC * C;
+  int grid_sN = grid_desc.stride[0] / 2;
   int grid_sH = grid_desc.stride[2];
   int grid_sW = grid_desc.stride[3];
-  int out_sN = output_desc.stride[0];
   int out_sC = output_desc.stride[1];
   int out_sH = output_desc.stride[2];
   int out_sW = output_desc.stride[3];
+  int out_sN = out_sC * C;
 
   CUDA_1D_KERNEL_LOOP(index, nthreads) {
-    const int w = index % out_W_h;
-    const int h = (index / out_W_h) % out_H;
-    const int n = index / (out_H * out_W_h);
-    const int grid_offset = n * grid_sN + h * grid_sH;
-    const int grid_w_offset = w * grid_sW;
-
-    const bool last_one = grid_w_offset * 2 == out_W - 1;
-
-    __half2 inp_H_h2 = __float2half2_rn(static_cast<float>(inp_H));
-    __half2 inp_W_h2 = __float2half2_rn(static_cast<float>(inp_W));
-    __half2 within_b, out_h2;
-    __half inp_l, inp_h;
+    const int w = index % out_W;
+    const int h = (index / out_W) % out_H;
+    const int n = index / (out_H * out_W);
+    const int grid_offset = n * grid_sN + h * grid_sH + w * grid_sW;
 
     // get the corresponding input x, y coordinates from grid
-    __half2 grid_x, grid_y;
-    if (last_one) {
-      grid_x = __halves2half2(((__half *)grid + grid_offset)[out_W - 1],
-                              static_cast<__half>(0.));
-      grid_y =
-          __halves2half2(((__half *)grid + grid_offset + grid_sCoor)[out_W - 1],
-                         static_cast<__half>(0.));
-    } else {
-      grid_x =
-          __halves2half2(((__half *)grid + grid_offset)[grid_w_offset * 2],
-                         ((__half *)grid + grid_offset)[grid_w_offset * 2 + 1]);
-      grid_y = __halves2half2(
-          ((__half *)grid + grid_offset + grid_sCoor)[grid_w_offset * 2],
-          ((__half *)grid + grid_offset + grid_sCoor)[grid_w_offset * 2 + 1]);
-    }
+    __half2 grid_xy = grid[grid_offset];
 
-    __half2 ix = grid_sampler_compute_source_index(grid_x, inp_W, padding_mode,
-                                                   align_corners);
-    __half2 iy = grid_sampler_compute_source_index(grid_y, inp_H, padding_mode,
-                                                   align_corners);
+    __half2 ixy = grid_sampler_compute_source_index_h2(
+        grid_xy,
+        __floats2half2_rn(static_cast<float>(inp_W), static_cast<float>(inp_H)),
+        padding_mode, align_corners);
 
     if (interpolation_mode == GridSamplerInterpolation::Bilinear) {
       // get NE, NW, SE, SW pixel values from (x, y)
-      __half2 ix_nw = h2floor(ix);
-      __half2 iy_nw = h2floor(iy);
-      __half2 ix_ne = __hadd2(ix_nw, __float2half2_rn(1.));
-      __half2 iy_ne = iy_nw;
-      __half2 ix_sw = ix_nw;
-      __half2 iy_sw = __hadd2(iy_nw, __float2half2_rn(1.));
-      __half2 ix_se = __hadd2(ix_nw, __float2half2_rn(1.));
-      __half2 iy_se = __hadd2(iy_nw, __float2half2_rn(1.));
+      __half ix = __low2half(ixy);
+      __half iy = __high2half(ixy);
+      ixy = h2floor(ixy);
+      int ix_nw = static_cast<int>(__low2float(ixy));
+      int iy_nw = static_cast<int>(__high2float(ixy));
+      int ix_ne = ix_nw + 1;
+      int iy_ne = iy_nw;
+      int ix_sw = ix_nw;
+      int iy_sw = iy_nw + 1;
+      int ix_se = ix_nw + 1;
+      int iy_se = iy_nw + 1;
 
       // get surfaces to each neighbor:
-      __half2 nw = __hmul2(__hsub2(ix_se, ix), __hsub2(iy_se, iy));
-      __half2 ne = __hmul2(__hsub2(ix, ix_sw), __hsub2(iy_sw, iy));
-      __half2 sw = __hmul2(__hsub2(ix_ne, ix), __hsub2(iy, iy_ne));
-      __half2 se = __hmul2(__hsub2(ix, ix_nw), __hsub2(iy, iy_nw));
+      __half2 nw = __half2half2(__hmul(__hsub(static_cast<__half>(ix_se), ix),
+                                       __hsub(static_cast<__half>(iy_se), iy)));
+      __half2 ne = __half2half2(__hmul(__hsub(ix, static_cast<__half>(ix_sw)),
+                                       __hsub(static_cast<__half>(iy_sw), iy)));
+      __half2 sw = __half2half2(__hmul(__hsub(static_cast<__half>(ix_ne), ix),
+                                       __hsub(iy, static_cast<__half>(iy_ne))));
+      __half2 se = __half2half2(__hmul(__hsub(ix, static_cast<__half>(ix_nw)),
+                                       __hsub(iy, static_cast<__half>(iy_nw))));
 
       // calculate bilinear weighted pixel value and set output pixel
-      __half *inp_ptr_NC = (__half *)input + n * inp_sN;
-      __half *out_ptr_NCHW =
-          (__half *)output + n * out_sN + h * out_sH + w * out_sW * 2;
+      auto inp_ptr_NC = input + n * inp_sN;
+      auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
       for (int c = 0; c < C;
            ++c, inp_ptr_NC += inp_sC, out_ptr_NCHW += out_sC) {
-        out_h2 = __float2half2_rn(0.);
-
-        within_b = within_bounds_2d_half2(iy_nw, ix_nw, inp_H_h2, inp_W_h2);
-        inp_l = inp_ptr_NC[(static_cast<int>(__low2float(iy_nw)) * inp_sH +
-                            static_cast<int>(__low2float(ix_nw)) * inp_sW) *
-                           static_cast<int>(__low2float(within_b))];
-        inp_h = inp_ptr_NC[(static_cast<int>(__high2float(iy_nw)) * inp_sH +
-                            static_cast<int>(__high2float(ix_nw)) * inp_sW) *
-                           static_cast<int>(__high2float(within_b))];
-        out_h2 = __hfma2(__hmul2(__halves2half2(inp_l, inp_h), nw), within_b,
-                         out_h2);
-
-        within_b = within_bounds_2d_half2(iy_ne, ix_ne, inp_H_h2, inp_W_h2);
-        inp_l = inp_ptr_NC[(static_cast<int>(__low2float(iy_ne)) * inp_sH +
-                            static_cast<int>(__low2float(ix_ne)) * inp_sW) *
-                           static_cast<int>(__low2float(within_b))];
-        inp_h = inp_ptr_NC[(static_cast<int>(__high2float(iy_ne)) * inp_sH +
-                            static_cast<int>(__high2float(ix_ne)) * inp_sW) *
-                           static_cast<int>(__high2float(within_b))];
-        out_h2 = __hfma2(__hmul2(__halves2half2(inp_l, inp_h), ne), within_b,
-                         out_h2);
-
-        within_b = within_bounds_2d_half2(iy_sw, ix_sw, inp_H_h2, inp_W_h2);
-        inp_l = inp_ptr_NC[(static_cast<int>(__low2float(iy_sw)) * inp_sH +
-                            static_cast<int>(__low2float(ix_sw)) * inp_sW) *
-                           static_cast<int>(__low2float(within_b))];
-        inp_h = inp_ptr_NC[(static_cast<int>(__high2float(iy_sw)) * inp_sH +
-                            static_cast<int>(__high2float(ix_sw)) * inp_sW) *
-                           static_cast<int>(__high2float(within_b))];
-        out_h2 = __hfma2(__hmul2(__halves2half2(inp_l, inp_h), sw), within_b,
-                         out_h2);
-
-        within_b = within_bounds_2d_half2(iy_se, ix_se, inp_H_h2, inp_W_h2);
-        inp_l = inp_ptr_NC[(static_cast<int>(__low2float(iy_se)) * inp_sH +
-                            static_cast<int>(__low2float(ix_se)) * inp_sW) *
-                           static_cast<int>(__low2float(within_b))];
-        inp_h = inp_ptr_NC[(static_cast<int>(__high2float(iy_se)) * inp_sH +
-                            static_cast<int>(__high2float(ix_se)) * inp_sW) *
-                           static_cast<int>(__high2float(within_b))];
-        out_h2 = __hfma2(__hmul2(__halves2half2(inp_l, inp_h), se), within_b,
-                         out_h2);
-
-        *out_ptr_NCHW = __low2half(out_h2);
-        if (!last_one) {
-          *(out_ptr_NCHW + 1) = __high2half(out_h2);
+        *out_ptr_NCHW = __float2half2_rn(0.f);
+        if (within_bounds_2d(iy_nw, ix_nw, inp_H, inp_W)) {
+          *out_ptr_NCHW = __hfma2(inp_ptr_NC[iy_nw * inp_sH + ix_nw * inp_sW],
+                                  nw, *out_ptr_NCHW);
+        }
+        if (within_bounds_2d(iy_ne, ix_ne, inp_H, inp_W)) {
+          *out_ptr_NCHW = __hfma2(inp_ptr_NC[iy_ne * inp_sH + ix_ne * inp_sW],
+                                  ne, *out_ptr_NCHW);
+        }
+        if (within_bounds_2d(iy_sw, ix_sw, inp_H, inp_W)) {
+          *out_ptr_NCHW = __hfma2(inp_ptr_NC[iy_sw * inp_sH + ix_sw * inp_sW],
+                                  sw, *out_ptr_NCHW);
+        }
+        if (within_bounds_2d(iy_se, ix_se, inp_H, inp_W)) {
+          *out_ptr_NCHW = __hfma2(inp_ptr_NC[iy_se * inp_sH + ix_se * inp_sW],
+                                  se, *out_ptr_NCHW);
         }
       }
     } else if (interpolation_mode == GridSamplerInterpolation::Nearest) {
-      __half2 ix_nearest = h2rint(ix);
-      __half2 iy_nearest = h2rint(iy);
+      ixy = h2rint(ixy);
+      int ix_nearest = static_cast<int>(__low2float(ixy));
+      int iy_nearest = static_cast<int>(__high2float(ixy));
 
       // assign nearest neighbor pixel value to output pixel
-      __half *inp_ptr_NC = (__half *)input + n * inp_sN;
-      __half *out_ptr_NCHW =
-          (__half *)output + n * out_sN + h * out_sH + w * out_sW * 2;
+      auto inp_ptr_NC = input + n * inp_sN;
+      auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
       for (int c = 0; c < C;
            ++c, inp_ptr_NC += inp_sC, out_ptr_NCHW += out_sC) {
-        out_h2 = __float2half2_rn(0.);
-
-        within_b =
-            within_bounds_2d_half2(iy_nearest, ix_nearest, inp_H_h2, inp_W_h2);
-        inp_l =
-            inp_ptr_NC[(static_cast<int>(__low2float(iy_nearest)) * inp_sH +
-                        static_cast<int>(__low2float(ix_nearest)) * inp_sW) *
-                       static_cast<int>(__low2float(within_b))];
-        inp_h =
-            inp_ptr_NC[(static_cast<int>(__high2float(iy_nearest)) * inp_sH +
-                        static_cast<int>(__high2float(ix_nearest)) * inp_sW) *
-                       static_cast<int>(__high2float(within_b))];
-        out_h2 = __hmul2(__halves2half2(inp_l, inp_h), within_b);
-
-        *out_ptr_NCHW = __low2half(out_h2);
-        if (!last_one) {
-          *(out_ptr_NCHW + 1) = __high2half(out_h2);
+        if (within_bounds_2d(iy_nearest, ix_nearest, inp_H, inp_W)) {
+          *out_ptr_NCHW = inp_ptr_NC[iy_nearest * inp_sH + ix_nearest * inp_sW];
+        } else {
+          *out_ptr_NCHW = __float2half2_rn(0.f);
         }
       }
     } else if (interpolation_mode == GridSamplerInterpolation::Bicubic) {
-      ix = grid_sampler_unnormalize(grid_x, inp_W, align_corners);
-      iy = grid_sampler_unnormalize(grid_y, inp_H, align_corners);
+      ixy = grid_sampler_unnormalize_h2(
+          grid_xy,
+          __floats2half2_rn(static_cast<float>(inp_W),
+                            static_cast<float>(inp_H)),
+          align_corners);
 
-      __half2 ix_nw = h2floor(ix);
-      __half2 iy_nw = h2floor(iy);
+      __half2 ixy_nw = h2floor(ixy);
+      const __half2 txy = __hsub2(ixy, ixy_nw);
 
-      const __half2 tx = __hsub2(ix, ix_nw);
-      const __half2 ty = __hsub2(iy, iy_nw);
-
-      __half *inp_ptr_NC = (__half *)input + n * inp_sN;
-      __half *out_ptr_NCHW =
-          (__half *)output + n * out_sN + h * out_sH + w * out_sW * 2;
+      auto inp_ptr_NC = input + n * inp_sN;
+      auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
       for (int c = 0; c < C;
            ++c, inp_ptr_NC += inp_sC, out_ptr_NCHW += out_sC) {
-        out_h2 = __float2half2_rn(0.);
         __half2 coefficients[4];
 
 #pragma unroll 4
         for (int i = 0; i < 4; ++i) {
           coefficients[i] = cubic_interp1d(
               get_value_bounded_h2(
-                  inp_ptr_NC, __hadd2(ix_nw, __float2half2_rn(-1.f)),
-                  __hadd2(iy_nw, __float2half2_rn(i - 1.f)), inp_W, inp_H,
-                  inp_sW, inp_sH, padding_mode, align_corners),
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(-1.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
               get_value_bounded_h2(
-                  inp_ptr_NC, __hadd2(ix_nw, __float2half2_rn(0.f)),
-                  __hadd2(iy_nw, __float2half2_rn(i - 1.f)), inp_W, inp_H,
-                  inp_sW, inp_sH, padding_mode, align_corners),
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(0.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
               get_value_bounded_h2(
-                  inp_ptr_NC, __hadd2(ix_nw, __float2half2_rn(1.f)),
-                  __hadd2(iy_nw, __float2half2_rn(i - 1.f)), inp_W, inp_H,
-                  inp_sW, inp_sH, padding_mode, align_corners),
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(1.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
               get_value_bounded_h2(
-                  inp_ptr_NC, __hadd2(ix_nw, __float2half2_rn(2.f)),
-                  __hadd2(iy_nw, __float2half2_rn(i - 1.f)), inp_W, inp_H,
-                  inp_sW, inp_sH, padding_mode, align_corners),
-              tx);
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(2.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
+              __half2half2(__low2half(txy)));
         }
 
-        out_h2 = cubic_interp1d(coefficients[0], coefficients[1],
-                                coefficients[2], coefficients[3], ty);
-
-        *out_ptr_NCHW = __low2half(out_h2);
-        if (!last_one) {
-          *(out_ptr_NCHW + 1) = __high2half(out_h2);
-        }
+        *out_ptr_NCHW =
+            cubic_interp1d(coefficients[0], coefficients[1], coefficients[2],
+                           coefficients[3], __half2half2(__high2half(txy)));
       }
     }
   }
@@ -1700,7 +1732,7 @@ void grid_sample(__half2 *output, const __half2 *input, const __half2 *grid,
   for (int i = 0; i < nb_dims; ++i) {
     if (i == 1) {
       continue;
-    } else if (i == nb_dims - 1) {
+    } else if (i == nb_dims - 1 and nb_dims == 5) {
       count *= (output_desc.shape[i] + 1) / 2;
     } else {
       count *= output_desc.shape[i];

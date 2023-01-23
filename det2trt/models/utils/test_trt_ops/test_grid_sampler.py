@@ -2,9 +2,9 @@ import torch
 import unittest
 from .base_test_case import BaseTestCase
 
-input_shape_2d = [8, 32, 100, 100]
+input_shape_2d = [8, 33, 100, 100]
 grid_shape_2d = [8, 2, 1001, 1001]
-output_shape_2d = [8, 32, 1001, 1001]
+output_shape_2d = [8, 33, 1001, 1001]
 
 input_shape_3d = [8, 32, 10, 10, 10]
 grid_shape_3d = [8, 3, 101, 101, 101]
