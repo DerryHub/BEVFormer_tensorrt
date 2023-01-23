@@ -16,8 +16,10 @@ namespace trt_plugin {
 
 class GridSamplerPlugin : public nvinfer1::IPluginV2DynamicExt {
 public:
-  GridSamplerPlugin(int mode, int paddingMode, bool alignCorners, bool use_h2, bool _3D);
-  GridSamplerPlugin(const void *serialData, size_t serialLength, bool use_h2, bool _3D);
+  GridSamplerPlugin(int mode, int paddingMode, bool alignCorners, bool use_h2,
+                    bool _3D);
+  GridSamplerPlugin(const void *serialData, size_t serialLength, bool use_h2,
+                    bool _3D);
   GridSamplerPlugin() = delete;
   ~GridSamplerPlugin() override;
 
@@ -115,7 +117,7 @@ private:
 
 class GridSampler2DPluginCreator2 : public trt_plugin::BaseCreator {
 public:
-    GridSampler2DPluginCreator2();
+  GridSampler2DPluginCreator2();
   ~GridSampler2DPluginCreator2() override = default;
 
   char const *getPluginName() const noexcept override;
@@ -137,54 +139,53 @@ private:
   static std::vector<nvinfer1::PluginField> mPluginAttributes;
 };
 
+class GridSampler3DPluginCreator : public trt_plugin::BaseCreator {
+public:
+  GridSampler3DPluginCreator();
+  ~GridSampler3DPluginCreator() override = default;
 
-    class GridSampler3DPluginCreator : public trt_plugin::BaseCreator {
-    public:
-        GridSampler3DPluginCreator();
-        ~GridSampler3DPluginCreator() override = default;
+  char const *getPluginName() const noexcept override;
 
-        char const *getPluginName() const noexcept override;
+  char const *getPluginVersion() const noexcept override;
 
-        char const *getPluginVersion() const noexcept override;
+  nvinfer1::PluginFieldCollection const *getFieldNames() noexcept override;
 
-        nvinfer1::PluginFieldCollection const *getFieldNames() noexcept override;
+  nvinfer1::IPluginV2DynamicExt *
+  createPlugin(char const *name,
+               const nvinfer1::PluginFieldCollection *fc) noexcept override;
 
-        nvinfer1::IPluginV2DynamicExt *
-        createPlugin(char const *name,
-                     const nvinfer1::PluginFieldCollection *fc) noexcept override;
+  nvinfer1::IPluginV2DynamicExt *
+  deserializePlugin(char const *name, void const *serialData,
+                    size_t serialLength) noexcept override;
 
-        nvinfer1::IPluginV2DynamicExt *
-        deserializePlugin(char const *name, void const *serialData,
-                          size_t serialLength) noexcept override;
+private:
+  static nvinfer1::PluginFieldCollection mFC;
+  static std::vector<nvinfer1::PluginField> mPluginAttributes;
+};
 
-    private:
-        static nvinfer1::PluginFieldCollection mFC;
-        static std::vector<nvinfer1::PluginField> mPluginAttributes;
-    };
+class GridSampler3DPluginCreator2 : public trt_plugin::BaseCreator {
+public:
+  GridSampler3DPluginCreator2();
+  ~GridSampler3DPluginCreator2() override = default;
 
-    class GridSampler3DPluginCreator2 : public trt_plugin::BaseCreator {
-    public:
-        GridSampler3DPluginCreator2();
-        ~GridSampler3DPluginCreator2() override = default;
+  char const *getPluginName() const noexcept override;
 
-        char const *getPluginName() const noexcept override;
+  char const *getPluginVersion() const noexcept override;
 
-        char const *getPluginVersion() const noexcept override;
+  nvinfer1::PluginFieldCollection const *getFieldNames() noexcept override;
 
-        nvinfer1::PluginFieldCollection const *getFieldNames() noexcept override;
+  nvinfer1::IPluginV2DynamicExt *
+  createPlugin(char const *name,
+               const nvinfer1::PluginFieldCollection *fc) noexcept override;
 
-        nvinfer1::IPluginV2DynamicExt *
-        createPlugin(char const *name,
-                     const nvinfer1::PluginFieldCollection *fc) noexcept override;
+  nvinfer1::IPluginV2DynamicExt *
+  deserializePlugin(char const *name, void const *serialData,
+                    size_t serialLength) noexcept override;
 
-        nvinfer1::IPluginV2DynamicExt *
-        deserializePlugin(char const *name, void const *serialData,
-                          size_t serialLength) noexcept override;
-
-    private:
-        static nvinfer1::PluginFieldCollection mFC;
-        static std::vector<nvinfer1::PluginField> mPluginAttributes;
-    };
+private:
+  static nvinfer1::PluginFieldCollection mFC;
+  static std::vector<nvinfer1::PluginField> mPluginAttributes;
+};
 
 } // namespace trt_plugin
 

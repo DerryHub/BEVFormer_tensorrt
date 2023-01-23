@@ -54,6 +54,7 @@ class _GridSampler2D(Function):
         grid_grad = grid_grad.permute(0, 3, 1, 2)
         return input_grad, grid_grad * 10, None, None, None
 
+
 class _GridSampler3D(Function):
     @staticmethod
     def symbolic(g, input, grid, interpolation_mode, padding_mode, align_corners):
@@ -116,6 +117,7 @@ class _GridSampler2D2(_GridSampler2D):
             padding_mode_i=padding_mode,
             align_corners_i=align_corners,
         )
+
 
 class _GridSampler3D2(_GridSampler3D):
     @staticmethod
@@ -219,6 +221,7 @@ def grid_sampler(
         )
     else:
         raise RuntimeError
+
 
 def grid_sampler2(
     input: Tensor,
