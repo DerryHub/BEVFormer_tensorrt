@@ -49,8 +49,8 @@
 
 |           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
 | :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.2    |  nv_half  |  RTX 3090   |
-| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.7    | nv_half2  |  RTX 3090   |
+| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.4    |  nv_half  | RTX 2080Ti  |
+| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.9    | nv_half2  | RTX 2080Ti  |
 
 #### Inputs
 
