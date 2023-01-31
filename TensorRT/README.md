@@ -49,8 +49,8 @@
 
 |           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
 | :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.2    |  nv_half  |  RTX 3090   |
-| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.7    | nv_half2  |  RTX 3090   |
+| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.4    |  nv_half  | RTX 2080Ti  |
+| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.9    | nv_half2  | RTX 2080Ti  |
 
 #### Inputs
 
@@ -82,10 +82,10 @@
 
 ### Modulated Deformable Conv2d
 
-|            OP Name            |                          Attributes                          |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
-| :---------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.3    |  nv_half  |  RTX 3090   |
-| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.4    | nv_half2  |  RTX 3090   |
+|            OP Name            |                          Attributes                          |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Tensor Format  | Test Device |
+| :---------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | -------------- | :---------: |
+| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.3    |  nv_half  | kLinear        | RTX 2080Ti  |
+| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.8    | nv_half2  | kLinear, kCHW2 | RTX 2080Ti  |
 
 #### Inputs
 
@@ -136,6 +136,8 @@
 * output: T[float/half/half2]
 
   Tensor shape: `[N, C_out, H_out, W_out]`
+
+**NOTE: Values (C_in / groups) and (C_in / deform_groups) should be even numbers.**
 
 ### Rotate
 
