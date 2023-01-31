@@ -93,7 +93,7 @@ size_t ModulatedDeformableConv2dPlugin::getWorkspaceSize(
   size_t kH = inputs[3].dims.d[3];
 
   size_t col_size =
-      nInputPlane * kW * kH * outputHeight * outputWidth * sizeof_dtype;
+      (nInputPlane + 1) / 2 * 2 * kW * kH * outputHeight * outputWidth * sizeof_dtype;
   col_size = size_t((col_size + 16 - 1) / 16) * 16;
   return col_size;
 }
@@ -169,12 +169,23 @@ void ModulatedDeformableConv2dPlugin::serialize(void *buffer) const noexcept {
 bool ModulatedDeformableConv2dPlugin::supportsFormatCombination(
     int pos, const nvinfer1::PluginTensorDesc *inOut, int nbInputs,
     int nbOutputs) noexcept {
+
   if (pos == 0) {
+      if (use_h2) {
+          return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
+                  inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
+                 (inOut[pos].type == nvinfer1::DataType::kHALF &&
+                  inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
+      }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
             inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
 
-  } else {
+  } else if ((nbInputs == 5 && pos == 4) || pos == nbInputs || pos == 2) {
+        return inOut[pos].type == inOut[0].type &&
+               inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
+  }
+  else {
     return inOut[pos].type == inOut[0].type &&
            inOut[pos].format == inOut[0].format;
   }
@@ -230,6 +241,18 @@ void ModulatedDeformableConv2dPlugin::configurePlugin(
   if (nbInputs == 5) {
     mWithBias = true;
   }
+  if (use_h2) {
+      int channels = inputs[0].desc.dims.d[1];
+      if (mGroup > 1 && (channels / mGroup) % 2 == 1) {
+          printf("%s (channels = %d, group = %d): channels / group should be an even number.\n", MDC_PLUGIN_NAME2, channels, mGroup);
+          exit(1);
+      }
+      if (mDeformableGroup > 1 && (channels / mDeformableGroup) % 2 == 1) {
+          printf("%s (channels = %d, deformable_group = %d): channels / deformable_group should be an even number.\n", MDC_PLUGIN_NAME2, channels, mDeformableGroup);
+          exit(1);
+      }
+  }
+
 }
 
 ModulatedDeformableConv2dPluginCreator::

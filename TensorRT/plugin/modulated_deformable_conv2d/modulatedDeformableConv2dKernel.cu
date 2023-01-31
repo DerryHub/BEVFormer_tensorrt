@@ -85,7 +85,38 @@ __device__ __half dmcn_im2col_bilinear(const __half *input,
   return val;
 }
 
-__device__ __half2 dmcn_im2col_bilinear_h2(const __half *input,
+__device__ __half2 dmcn_im2col_bilinear_h2(const __half2 *input,
+                                       const int data_width, const int height,
+                                       const int width, __half2 hw) {
+    __half2 hw_low = h2floor(hw);
+    __half2 hw_high = __hadd2(hw_low, __float2half2_rn(1.f));
+    __half2 lhw = __hsub2(hw, hw_low);
+    __half2 hhw = __hsub2(__float2half2_rn(1.f), lhw);
+    __half2 w1 = __half2half2(__hmul(__low2half(hhw), __high2half(hhw))),
+    w2 = __half2half2(__hmul(__low2half(hhw), __high2half(lhw))),
+    w3 = __half2half2(__hmul(__low2half(lhw), __high2half(hhw))),
+    w4 = __half2half2(__hmul(__low2half(lhw), __high2half(lhw)));
+
+    int h_low = static_cast<int>(__low2float(hw_low)), w_low = static_cast<int>(__high2float(hw_low)),
+    h_high = static_cast<int>(__low2float(hw_high)), w_high = static_cast<int>(__high2float(hw_high));
+    __half2 val = __float2half2_rn(0.f);
+
+    if (h_low >= 0 && w_low >= 0) {
+        val = __hfma2(input[h_low * data_width + w_low], w1, val);
+    }
+    if (h_low >= 0 && w_high < width) {
+        val = __hfma2(input[h_low * data_width + w_high], w2, val);
+    }
+    if (h_high < height && w_low >= 0) {
+        val = __hfma2(input[h_high * data_width + w_low], w3, val);
+    }
+    if (h_high < height && w_high < width) {
+        val = __hfma2(input[h_high * data_width + w_high], w4, val);
+    }
+    return val;
+}
+
+__device__ __half2 dmcn_im2col_bilinear_h2_(const __half *input,
                                            const int data_width,
                                            const int height, const int width,
                                            __half2 h, __half2 w,
@@ -287,7 +318,6 @@ __global__ void modulated_deformable_im2col_gpu_kernel(
           val = dmcn_im2col_bilinear(data_im_ptr, width, height, width, h_im,
                                      w_im);
         *data_col_ptr = __hmul(val, mask);
-
         data_col_ptr += batch_size * height_col * width_col;
       }
     }
@@ -295,97 +325,64 @@ __global__ void modulated_deformable_im2col_gpu_kernel(
 }
 
 __global__ void modulated_deformable_im2col_gpu_kernel_h2(
-    const int n, const __half *data_im, const __half *data_offset,
+    const int n, const __half2 *data_im, const __half2 *data_offset,
     const __half *data_mask, const int height, const int width,
     const int kernel_h, const int kernel_w, const int pad_h, const int pad_w,
     const int stride_h, const int stride_w, const int dilation_h,
     const int dilation_w, const int channel_per_deformable_group,
     const int batch_size, const int num_channels, const int deformable_group,
-    const int height_col, const int width_col, __half *data_col) {
-  CUDA_1D_KERNEL_LOOP(index, n) {
-    // index of output matrix
-    const int width_col_h2 = (width_col + 1) / 2;
-    const int w_col = index % width_col_h2;
-    const int h_col = (index / width_col_h2) % height_col;
-    const int b_col = (index / width_col_h2 / height_col) % batch_size;
-    const int c_im = (index / width_col_h2 / height_col) / batch_size;
-    const int c_col = c_im * kernel_h * kernel_w;
-    const bool last_one = w_col * 2 == width_col - 1;
+    const int height_col, const int width_col, __half2 *data_col) {
+    CUDA_1D_KERNEL_LOOP(index, n) {
+        // index of output matrix
+        const int w_col = index % width_col;
+        const int h_col = (index / width_col) % height_col;
+        const int b_col = (index / width_col / height_col) % batch_size;
+        const int c_im = (index / width_col / height_col) / batch_size;
+        const int c_col = c_im * kernel_h * kernel_w;
 
-    // compute deformable group index
-    const int deformable_group_index = c_im / channel_per_deformable_group;
+        // compute deformable group index
+        const int deformable_group_index = c_im / channel_per_deformable_group;
 
-    const int h_in = h_col * stride_h - pad_h;
-    const int w_in = w_col * 2 * stride_w - pad_w;
+        const int h_in = h_col * stride_h - pad_h;
+        const int w_in = w_col * stride_w - pad_w;
 
-    __half *data_col_ptr =
-        data_col +
-        ((c_col * batch_size + b_col) * height_col + h_col) * width_col +
-        w_col * 2;
-    const __half *data_im_ptr =
-        data_im + (b_col * num_channels + c_im) * height * width;
-    const __half *data_offset_ptr =
-        data_offset + (b_col * deformable_group + deformable_group_index) * 2 *
-                          kernel_h * kernel_w * height_col * width_col;
+        auto *data_col_ptr = (__half *)data_col + ((c_col * 2 * batch_size + b_col * 2) * height_col + h_col) * width_col + w_col;
+        const __half2 *data_im_ptr =
+                data_im + (b_col * ((num_channels + 1) / 2) + c_im) * height * width;
+        const __half2 *data_offset_ptr =
+                data_offset + (b_col * deformable_group + deformable_group_index) *
+                              kernel_h * kernel_w * height_col * width_col;
 
-    const __half *data_mask_ptr =
-        data_mask + (b_col * deformable_group + deformable_group_index) *
-                        kernel_h * kernel_w * height_col * width_col;
+        const __half *data_mask_ptr =
+                data_mask + (b_col * deformable_group + deformable_group_index) *
+                            kernel_h * kernel_w * height_col * width_col;
 
-    for (int i = 0; i < kernel_h; ++i) {
-      for (int j = 0; j < kernel_w; ++j) {
-        const int data_offset_h_ptr =
-            ((2 * (i * kernel_w + j)) * height_col + h_col) * width_col +
-            w_col * 2;
-        const int data_offset_w_ptr =
-            ((2 * (i * kernel_w + j) + 1) * height_col + h_col) * width_col +
-            w_col * 2;
-        const int data_mask_hw_ptr =
-            ((i * kernel_w + j) * height_col + h_col) * width_col + w_col * 2;
-        const __half2 offset_h =
-            __halves2half2(data_offset_ptr[data_offset_h_ptr],
-                           data_offset_ptr[data_offset_h_ptr + 1]);
-        const __half2 offset_w =
-            __halves2half2(data_offset_ptr[data_offset_w_ptr],
-                           data_offset_ptr[data_offset_w_ptr + 1]);
-        const __half2 mask =
-            __halves2half2(data_mask_ptr[data_mask_hw_ptr],
-                           data_mask_ptr[data_mask_hw_ptr + 1]);
-
-        __half2 val = __float2half2_rn(0.f);
-
-        const __half h_im = __hfma(__float2half(static_cast<float>(i)),
-                                   __float2half(static_cast<float>(dilation_h)),
-                                   __float2half(static_cast<float>(h_in)));
-        const __half w_im = __hfma(__float2half(static_cast<float>(j)),
-                                   __float2half(static_cast<float>(dilation_w)),
-                                   __float2half(static_cast<float>(w_in)));
-        const __half2 h_im_h2 = __hadd2(__half2half2(h_im), offset_h);
-        const __half2 w_im_h2 = __hadd2(
-            __halves2half2(
-                w_im, __hadd(w_im, __float2half(static_cast<float>(stride_w)))),
-            offset_w);
-
-        const __half2 within = __hmul2(
-            __hmul2(__hgt2(h_im_h2, __float2half2_rn(-1.f)),
-                    __hgt2(w_im_h2, __float2half2_rn(-1.f))),
-            __hmul2(
-                __hlt2(h_im_h2, __float2half2_rn(static_cast<float>(height))),
-                __hlt2(w_im_h2, __float2half2_rn(static_cast<float>(width)))));
-
-        val = dmcn_im2col_bilinear_h2(data_im_ptr, width, height, width,
-                                      h_im_h2, w_im_h2, within);
-        val = __hmul2(val, mask);
-
-        *data_col_ptr = __low2half(val);
-        if (!last_one) {
-          *(data_col_ptr + 1) = __high2half(val);
+        __half2 condition;
+        for (int i = 0; i < kernel_h; ++i) {
+            for (int j = 0; j < kernel_w; ++j) {
+                const int data_offset_hw_ptr =
+                        ((i * kernel_w + j) * height_col + h_col) * width_col + w_col;
+                const int data_mask_hw_ptr =
+                        ((i * kernel_w + j) * height_col + h_col) * width_col + w_col;
+                const __half2 offset_hw = data_offset_ptr[data_offset_hw_ptr];
+                const __half2 mask = __half2half2(data_mask_ptr[data_mask_hw_ptr]);
+                __half2 val = __float2half2_rn(0.f);
+                const __half2 hw_im = __hadd2(
+                        offset_hw, __hfma2(__floats2half2_rn(static_cast<float>(i), static_cast<float>(j)),
+                                           __floats2half2_rn(static_cast<float>(dilation_h), static_cast<float>(dilation_w)),
+                                           __floats2half2_rn(static_cast<float>(h_in), static_cast<float>(w_in)))
+                        );
+                condition = __hmul2(__hgt2(hw_im, __float2half2_rn(-1.f)), __hlt2(hw_im, __floats2half2_rn(static_cast<float>(height), static_cast<float>(width))));
+                if (__low2float(condition) * __high2float(condition)) {
+                    val = dmcn_im2col_bilinear_h2(data_im_ptr, width, height, width, hw_im);
+                }
+                val = __hmul2(val, mask);
+                *data_col_ptr = __low2half(val);
+                *(data_col_ptr + batch_size * height_col * width_col) = __high2half(val);
+                data_col_ptr += batch_size * height_col * width_col * 2;
+            }
         }
-
-        data_col_ptr += batch_size * height_col * width_col;
-      }
     }
-  }
 }
 
 template <typename scalar_t>
@@ -431,26 +428,26 @@ void trt_modulated_deformable_im2col(
 }
 
 void trt_modulated_deformable_im2col_h2(
-    const __half *data_im_, const __half *data_offset_,
-    const __half *data_mask_, const int batch_size, const int channels,
-    const int height_im, const int width_im, const int height_col,
-    const int width_col, const int kernel_h, const int kenerl_w,
-    const int pad_h, const int pad_w, const int stride_h, const int stride_w,
-    const int dilation_h, const int dilation_w, const int deformable_group,
-    __half *data_col_, cudaStream_t stream) {
-  // num_axes should be smaller than block size
-  const int channel_per_deformable_group = channels / deformable_group;
-  const int num_kernels =
-      channels * batch_size * height_col * ((width_col + 1) / 2);
+        const __half2 *data_im_, const __half2 *data_offset_,
+        const __half *data_mask_, const int batch_size, const int channels,
+        const int height_im, const int width_im, const int height_col,
+        const int width_col, const int kernel_h, const int kenerl_w,
+        const int pad_h, const int pad_w, const int stride_h, const int stride_w,
+        const int dilation_h, const int dilation_w, const int deformable_group,
+        __half2 *data_col_, cudaStream_t stream) {
+    // num_axes should be smaller than block size
+    const int channel_per_deformable_group = (channels + 1) / 2 / deformable_group;
+    const int num_kernels =
+            (channels + 1) / 2 * batch_size * height_col * width_col;
 
-  modulated_deformable_im2col_gpu_kernel_h2<<<GET_BLOCKS(num_kernels),
-                                              THREADS_PER_BLOCK, 0, stream>>>(
-      num_kernels, data_im_, data_offset_, data_mask_, height_im, width_im,
-      kernel_h, kenerl_w, pad_h, pad_w, stride_h, stride_w, dilation_h,
-      dilation_w, channel_per_deformable_group, batch_size, channels,
-      deformable_group, height_col, width_col, data_col_);
+    modulated_deformable_im2col_gpu_kernel_h2<<<GET_BLOCKS(num_kernels),
+    THREADS_PER_BLOCK, 0, stream>>>(
+            num_kernels, data_im_, data_offset_, data_mask_, height_im, width_im,
+            kernel_h, kenerl_w, pad_h, pad_w, stride_h, stride_w, dilation_h,
+            dilation_w, channel_per_deformable_group, batch_size, channels,
+            deformable_group, height_col, width_col, data_col_);
 
-  cudaCheckError();
+    cudaCheckError();
 }
 
 template <typename scalar_t>
@@ -618,29 +615,29 @@ void ModulatedDeformConvForwardCUDAKernel(
   const int width_out =
       (width + 2 * pad_w - (dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
 
-  auto columns = (__half *)workspace;
+  auto columns = (__half2 *)workspace;
 
-  const size_t input_step = channels * height * width;
+  const size_t input_step = (channels + 1) / 2 * height * width;
   const size_t offset_step =
-      deformable_group * kernel_h * kernel_w * 2 * height_out * width_out;
+      deformable_group * kernel_h * kernel_w * height_out * width_out;
   const size_t mask_step =
       deformable_group * kernel_h * kernel_w * height_out * width_out;
   const size_t out_step = channels_out * height_out * width_out;
   const size_t out_group_step = out_step / group;
   const size_t col_g_step =
-      channels * kernel_w * kernel_h / group * height_out * width_out;
+      (channels + 1) / 2 * kernel_w * kernel_h / group * height_out * width_out;
   const size_t weight_g_step =
-      channels_out / group * channels / group * kernel_h * kernel_w;
+      channels_out / group * ((channels + 1) / 2) / group * kernel_h * kernel_w;
 
   const int m = channels_out / group;
   const int n = height_out * width_out;
-  const int k = channels / group * kernel_h * kernel_w;
+  const int k = (channels + 1) / 2 / group * kernel_h * kernel_w * 2;
   __half alpha = __float2half(1.f);
   __half beta = __float2half(0.f);
 
   for (int b = 0; b < batch; b++) {
-    const __half *input_start = (__half *)input + b * input_step;
-    const __half *offset_start = (__half *)offset + b * offset_step;
+    const __half2 *input_start = input + b * input_step;
+    const __half2 *offset_start = offset + b * offset_step;
     const __half *mask_start = (__half *)mask + b * mask_step;
     trt_modulated_deformable_im2col_h2(
         input_start, offset_start, mask_start, 1, channels, height, width,
@@ -648,13 +645,13 @@ void ModulatedDeformConvForwardCUDAKernel(
         stride_w, dilation_h, dilation_w, deformable_group, columns, stream);
 
     for (int g = 0; g < group; g++) {
-      const __half *weight_start = (__half *)weight + g * weight_g_step;
-      __half *col_start = columns + g * col_g_step;
+      const __half2 *weight_start = weight + g * weight_g_step;
+      __half2 *col_start = columns + g * col_g_step;
       __half *out_buffer_start =
           (__half *)output + b * out_step + g * out_group_step;
 
       cublasGemmWrap<__half>(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
-                             &alpha, col_start, n, weight_start, k, &beta,
+                             &alpha, (__half *)col_start, n, (__half *)weight_start, k, &beta,
                              out_buffer_start, n);
       cudaCheckError();
     }
