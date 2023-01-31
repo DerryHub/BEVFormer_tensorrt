@@ -141,10 +141,10 @@
 
 ### Rotate
 
-|  OP Name   |     Attributes     |               Inputs                |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
-| :--------: | :----------------: | :---------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| RotateTRT  | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    X2.1    |  nv_half  |  RTX 3090   |
-| RotateTRT2 | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    x2.1    | nv_half2  |  RTX 3090   |
+|  OP Name   |     Attributes     |               Inputs                |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Tensor Format  | Test Device |
+| :--------: | :----------------: | :---------------------------------: | :-------: | :--------: | :--------: | :-------: | -------------- | :---------: |
+| RotateTRT  | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    X2.4    |  nv_half  | kLinear        | RTX 2080Ti  |
+| RotateTRT2 | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    x2.5    | nv_half2  | kLinear, kCHW2 | RTX 2080Ti  |
 
 #### Inputs
 
