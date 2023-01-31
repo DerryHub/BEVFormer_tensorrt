@@ -12,20 +12,18 @@ class _Rotate(Function):
     def forward(ctx, img, angle, center, interpolation):
         assert img.ndim == 3
         oh, ow = img.shape[-2:]
-        center[0] -= center[0].new_tensor(ow * 0.5)
-        center[1] -= center[1].new_tensor(oh * 0.5)
+        cx = center[0] - center[0].new_tensor(ow * 0.5)
+        cy = center[1] - center[1].new_tensor(oh * 0.5)
 
         angle = -angle * np.pi / 180
         theta = torch.stack(
             [
                 torch.cos(angle),
                 torch.sin(angle),
-                -center[0] * torch.cos(angle)
-                - center[1] * torch.sin(angle)
-                + center[0],
+                -cx * torch.cos(angle) - cy * torch.sin(angle) + cx,
                 -torch.sin(angle),
                 torch.cos(angle),
-                center[0] * torch.sin(angle) - center[1] * torch.cos(angle) + center[1],
+                cx * torch.sin(angle) - cy * torch.cos(angle) + cy,
             ]
         ).view(1, 2, 3)
 
