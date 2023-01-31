@@ -20,9 +20,7 @@ class _Rotate(Function):
             [
                 torch.cos(angle),
                 torch.sin(angle),
-                -cx * torch.cos(angle)
-                - cy * torch.sin(angle)
-                + cx,
+                -cx * torch.cos(angle) - cy * torch.sin(angle) + cx,
                 -torch.sin(angle),
                 torch.cos(angle),
                 cx * torch.sin(angle) - cy * torch.cos(angle) + cy,

@@ -69,10 +69,11 @@ grid_sampler_compute_source_index(__half coord, int size) {
 
 __forceinline__ __device__ __half2
 grid_sampler_compute_source_index_h2(__half2 coord, __half2 wh) {
-    coord = __hfma2(__hfma2(coord, __float2half2_rn(0.5f), __float2half2_rn(0.5f)),
-                    wh, __float2half2_rn(-0.5f));
-    coord = safe_downgrade_to_int_range(coord);
-    return coord;
+  coord =
+      __hfma2(__hfma2(coord, __float2half2_rn(0.5f), __float2half2_rn(0.5f)),
+              wh, __float2half2_rn(-0.5f));
+  coord = safe_downgrade_to_int_range(coord);
+  return coord;
 }
 
 template <typename scalar_t>
@@ -263,91 +264,103 @@ __global__ void rotateKernel_h2(const int nthreads, __half2 *output,
                                 __half2 *input, __half *angle, __half *center,
                                 int channel, int height, int width,
                                 RotateInterpolation interp) {
-    int inp_sC = width * height;
-    int inp_sH = width;
-    int inp_sW = 1;
+  int inp_sC = width * height;
+  int inp_sH = width;
+  int inp_sW = 1;
 
-    const __half ang = __hmul(*angle, __float2half(-M_PI / 180.f));
-    const __half cx = __hsub(center[0], __float2half(0.5 * width)),
-            cy = __hsub(center[1], __float2half(0.5 * height));
-    const __half matrix[6] = {
-            hcos(ang),  hsin(ang), -cx * hcos(ang) - cy * hsin(ang) + cx,
-            -hsin(ang), hcos(ang), cx * hsin(ang) - cy * hcos(ang) + cy};
+  const __half ang = __hmul(*angle, __float2half(-M_PI / 180.f));
+  const __half cx = __hsub(center[0], __float2half(0.5 * width)),
+               cy = __hsub(center[1], __float2half(0.5 * height));
+  const __half matrix[6] = {
+      hcos(ang),  hsin(ang), -cx * hcos(ang) - cy * hsin(ang) + cx,
+      -hsin(ang), hcos(ang), cx * hsin(ang) - cy * hcos(ang) + cy};
 
-    CUDA_1D_KERNEL_LOOP(index, nthreads) {
-        channel = (channel + 1) / 2;
-        const int w = index % width;
-        const int h = (index / width) % height;
+  CUDA_1D_KERNEL_LOOP(index, nthreads) {
+    channel = (channel + 1) / 2;
+    const int w = index % width;
+    const int h = (index / width) % height;
 
-        const __half2 xy = __hadd2(
-                __hfma2(__float2half2_rn(-0.5f), __floats2half2_rn(static_cast<float>(width), static_cast<float>(height)),
-                        __float2half2_rn(0.5f)), __floats2half2_rn(static_cast<float>(w), static_cast<float>(h))
-                );
-        const __half2 grid_xy = __h2div(
-                __hadd2(__hmul2(__halves2half2(matrix[0], matrix[3]), __half2half2(__low2half(xy))),
-                        __hfma2(__halves2half2(matrix[1], matrix[4]), __half2half2(__high2half(xy)), __halves2half2(matrix[2], matrix[5]))),
-                        __hmul2(__float2half2_rn(0.5f), __floats2half2_rn(static_cast<float>(width), static_cast<float>(height)))
-                );
+    const __half2 xy = __hadd2(
+        __hfma2(__float2half2_rn(-0.5f),
+                __floats2half2_rn(static_cast<float>(width),
+                                  static_cast<float>(height)),
+                __float2half2_rn(0.5f)),
+        __floats2half2_rn(static_cast<float>(w), static_cast<float>(h)));
+    const __half2 grid_xy =
+        __h2div(__hadd2(__hmul2(__halves2half2(matrix[0], matrix[3]),
+                                __half2half2(__low2half(xy))),
+                        __hfma2(__halves2half2(matrix[1], matrix[4]),
+                                __half2half2(__high2half(xy)),
+                                __halves2half2(matrix[2], matrix[5]))),
+                __hmul2(__float2half2_rn(0.5f),
+                        __floats2half2_rn(static_cast<float>(width),
+                                          static_cast<float>(height))));
 
-        __half2 ixy = grid_sampler_compute_source_index_h2(grid_xy, __floats2half2_rn(static_cast<float>(width), static_cast<float>(height)));
-        __half ix = __low2half(ixy);
-        __half iy = __high2half(ixy);
+    __half2 ixy = grid_sampler_compute_source_index_h2(
+        grid_xy, __floats2half2_rn(static_cast<float>(width),
+                                   static_cast<float>(height)));
+    __half ix = __low2half(ixy);
+    __half iy = __high2half(ixy);
 
-        if (interp == RotateInterpolation::Bilinear) {
-            // get NE, NW, SE, SW pixel values from (x, y)
-            int ix_nw = static_cast<int>(hfloor(ix));
-            int iy_nw = static_cast<int>(hfloor(iy));
-            int ix_ne = ix_nw + 1;
-            int iy_ne = iy_nw;
-            int ix_sw = ix_nw;
-            int iy_sw = iy_nw + 1;
-            int ix_se = ix_nw + 1;
-            int iy_se = iy_nw + 1;
+    if (interp == RotateInterpolation::Bilinear) {
+      // get NE, NW, SE, SW pixel values from (x, y)
+      int ix_nw = static_cast<int>(hfloor(ix));
+      int iy_nw = static_cast<int>(hfloor(iy));
+      int ix_ne = ix_nw + 1;
+      int iy_ne = iy_nw;
+      int ix_sw = ix_nw;
+      int iy_sw = iy_nw + 1;
+      int ix_se = ix_nw + 1;
+      int iy_se = iy_nw + 1;
 
-            // get surfaces to each neighbor:
-            __half2 nw = __half2half2(__hmul(__hsub(static_cast<__half>(ix_se), ix),
-                               __hsub(static_cast<__half>(iy_se), iy)));
-            __half2 ne = __half2half2(__hmul(__hsub(ix, static_cast<__half>(ix_sw)),
-                               __hsub(static_cast<__half>(iy_sw), iy)));
-            __half2 sw = __half2half2(__hmul(__hsub(static_cast<__half>(ix_ne), ix),
-                               __hsub(iy, static_cast<__half>(iy_ne))));
-            __half2 se = __half2half2(__hmul(__hsub(ix, static_cast<__half>(ix_nw)),
-                               __hsub(iy, static_cast<__half>(iy_nw))));
+      // get surfaces to each neighbor:
+      __half2 nw = __half2half2(__hmul(__hsub(static_cast<__half>(ix_se), ix),
+                                       __hsub(static_cast<__half>(iy_se), iy)));
+      __half2 ne = __half2half2(__hmul(__hsub(ix, static_cast<__half>(ix_sw)),
+                                       __hsub(static_cast<__half>(iy_sw), iy)));
+      __half2 sw = __half2half2(__hmul(__hsub(static_cast<__half>(ix_ne), ix),
+                                       __hsub(iy, static_cast<__half>(iy_ne))));
+      __half2 se = __half2half2(__hmul(__hsub(ix, static_cast<__half>(ix_nw)),
+                                       __hsub(iy, static_cast<__half>(iy_nw))));
 
-            // calculate bilinear weighted pixel value and set output pixel
-            auto inp_ptr = input;
-            auto out_ptr = output + h * inp_sH + w * inp_sW;
-            for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
-                *out_ptr = __float2half2_rn(0.f);
-                if (within_bounds_2d(iy_nw, ix_nw, height, width)) {
-                    *out_ptr = __hfma2(inp_ptr[iy_nw * inp_sH + ix_nw * inp_sW], nw, *out_ptr);
-                }
-                if (within_bounds_2d(iy_ne, ix_ne, height, width)) {
-                    *out_ptr = __hfma2(inp_ptr[iy_ne * inp_sH + ix_ne * inp_sW], ne, *out_ptr);
-                }
-                if (within_bounds_2d(iy_sw, ix_sw, height, width)) {
-                    *out_ptr = __hfma2(inp_ptr[iy_sw * inp_sH + ix_sw * inp_sW], sw, *out_ptr);
-                }
-                if (within_bounds_2d(iy_se, ix_se, height, width)) {
-                    *out_ptr = __hfma2(inp_ptr[iy_se * inp_sH + ix_se * inp_sW], se, *out_ptr);
-                }
-            }
-        } else if (interp == RotateInterpolation::Nearest) {
-            int ix_nearest = static_cast<int>(hrint(ix));
-            int iy_nearest = static_cast<int>(hrint(iy));
-
-            // assign nearest neighbor pixel value to output pixel
-            auto inp_ptr = input;
-            auto out_ptr = output + h * inp_sH + w * inp_sW;
-            for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
-                if (within_bounds_2d(iy_nearest, ix_nearest, height, width)) {
-                    *out_ptr = inp_ptr[iy_nearest * inp_sH + ix_nearest * inp_sW];
-                } else {
-                    *out_ptr = __float2half2_rn(0.f);
-                }
-            }
+      // calculate bilinear weighted pixel value and set output pixel
+      auto inp_ptr = input;
+      auto out_ptr = output + h * inp_sH + w * inp_sW;
+      for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
+        *out_ptr = __float2half2_rn(0.f);
+        if (within_bounds_2d(iy_nw, ix_nw, height, width)) {
+          *out_ptr =
+              __hfma2(inp_ptr[iy_nw * inp_sH + ix_nw * inp_sW], nw, *out_ptr);
         }
+        if (within_bounds_2d(iy_ne, ix_ne, height, width)) {
+          *out_ptr =
+              __hfma2(inp_ptr[iy_ne * inp_sH + ix_ne * inp_sW], ne, *out_ptr);
+        }
+        if (within_bounds_2d(iy_sw, ix_sw, height, width)) {
+          *out_ptr =
+              __hfma2(inp_ptr[iy_sw * inp_sH + ix_sw * inp_sW], sw, *out_ptr);
+        }
+        if (within_bounds_2d(iy_se, ix_se, height, width)) {
+          *out_ptr =
+              __hfma2(inp_ptr[iy_se * inp_sH + ix_se * inp_sW], se, *out_ptr);
+        }
+      }
+    } else if (interp == RotateInterpolation::Nearest) {
+      int ix_nearest = static_cast<int>(hrint(ix));
+      int iy_nearest = static_cast<int>(hrint(iy));
+
+      // assign nearest neighbor pixel value to output pixel
+      auto inp_ptr = input;
+      auto out_ptr = output + h * inp_sH + w * inp_sW;
+      for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
+        if (within_bounds_2d(iy_nearest, ix_nearest, height, width)) {
+          *out_ptr = inp_ptr[iy_nearest * inp_sH + ix_nearest * inp_sW];
+        } else {
+          *out_ptr = __float2half2_rn(0.f);
+        }
+      }
     }
+  }
 }
 
 template <typename T>

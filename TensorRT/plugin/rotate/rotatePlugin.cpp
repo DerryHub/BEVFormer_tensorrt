@@ -113,20 +113,19 @@ bool RotatePlugin::supportsFormatCombination(
     int32_t pos, const nvinfer1::PluginTensorDesc *inOut, int32_t nbInputs,
     int32_t nbOutputs) noexcept {
   if (pos == 0) {
-      if (use_h2) {
-          return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
-           inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
-          (inOut[pos].type == nvinfer1::DataType::kHALF &&
-           inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
-      }
+    if (use_h2) {
+      return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
+              inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
+             (inOut[pos].type == nvinfer1::DataType::kHALF &&
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
+    }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
             inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
   } else if (pos == nbInputs) {
-      return inOut[pos].type == inOut[0].type &&
-             inOut[pos].format == inOut[0].format;
-  }
-  else {
+    return inOut[pos].type == inOut[0].type &&
+           inOut[pos].format == inOut[0].format;
+  } else {
     return inOut[pos].type == inOut[0].type &&
            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
   }
