@@ -2,7 +2,7 @@ import pycuda.driver as cuda
 import torch
 import numpy as np
 from ..register import TRT_FUNCTIONS
-from .utils import createModel, pth2trt, trt_forward
+from .utils import createModel, pth2trt, trt_forward, Calibrator
 
 
 class BaseTestCase:
@@ -16,10 +16,13 @@ class BaseTestCase:
         device="cuda",
         delta=1e-5,
     ):
-        assert "fp16" in func_name or "fp32" in func_name
-        self.p16 = False
+        assert "fp16" in func_name or "fp32" in func_name or "int8" in func_name
+        self.fp16 = False
+        self.int8 = False
         if "fp16" in func_name:
-            self.p16 = True
+            self.fp16 = True
+        elif "int8" in func_name:
+            self.int8 = True
         self.stream = cuda.Stream()
         self.input_shapes = input_shapes
         self.output_shapes = output_shapes
@@ -37,12 +40,12 @@ class BaseTestCase:
         models = []
         for param in params:
             dic = {"param": param}
-            if self.p16:
+            if self.fp16:
                 model_fp16 = createModel(
                     module,
                     input_shapes=input_shapes,
                     output_shapes=output_shapes,
-                    fp16=True,
+                    fp16=self.fp16,
                     **param
                 )
                 dic["model_pth_fp16"] = model_fp16
@@ -51,19 +54,28 @@ class BaseTestCase:
                     module,
                     input_shapes=input_shapes,
                     output_shapes=output_shapes,
-                    fp16=False,
+                    fp16=self.fp16,
+                    int8=self.int8,
                     **param
                 )
-                dic["model_pth_fp32"] = model_fp32
+                if self.int8:
+                    dic["model_pth_int8"] = model_fp32
+                else:
+                    dic["model_pth_fp32"] = model_fp32
             models.append(dic)
         return models
 
     def createInputs(self):
-        if self.p16:
+        if self.fp16:
             inputs_pth = self.getInputs()
             self.inputs_pth_fp16 = {key: val.half() for key, val in inputs_pth.items()}
             self.inputs_np_fp16 = {
                 key: val.cpu().numpy() for key, val in self.inputs_pth_fp16.items()
+            }
+        elif self.int8:
+            self.inputs_pth_int8 = self.getInputs()
+            self.inputs_np_int8 = {
+                key: val.cpu().numpy() for key, val in self.inputs_pth_int8.items()
             }
         else:
             self.inputs_pth_fp32 = self.getInputs()
@@ -83,28 +95,48 @@ class BaseTestCase:
 
     def buildEngine(self, opset_version):
         for dic in self.models:
-            if self.p16:
+            if self.fp16:
                 engine = pth2trt(
                     dic["model_pth_fp16"],
                     self.inputs_pth_fp16,
                     opset_version=opset_version,
-                    fp16=True,
+                    fp16=self.fp16,
                 )
                 dic["engine_fp16"] = engine
+            elif self.int8:
+                calibrator = Calibrator(self.input_shapes)
+                calibrator.set_inputs(self.inputs_np_int8)
+
+                engine = pth2trt(
+                    dic["model_pth_int8"],
+                    self.inputs_pth_int8,
+                    opset_version=opset_version,
+                    int8=True,
+                    calibrator=calibrator,
+                )
+                dic["engine_int8"] = engine
             else:
                 engine = pth2trt(
                     dic["model_pth_fp32"],
                     self.inputs_pth_fp32,
                     opset_version=opset_version,
-                    fp16=False,
+                    fp16=self.fp16,
                 )
                 dic["engine_fp32"] = engine
 
-    def engineForward(self, engine, fp16=False):
+    def engineForward(self, engine, fp16=False, int8=False):
         if fp16:
             outputs_trt, t = trt_forward(
                 engine,
                 self.inputs_np_fp16,
+                self.input_shapes,
+                self.output_shapes,
+                self.stream,
+            )
+        elif int8:
+            outputs_trt, t = trt_forward(
+                engine,
+                self.inputs_np_int8,
                 self.input_shapes,
                 self.output_shapes,
                 self.stream,
@@ -120,16 +152,19 @@ class BaseTestCase:
         for val in outputs_trt.values():
             return val, t
 
-    def torchForward(self, model, fp16=False):
+    def torchForward(self, model, fp16=False, int8=False):
         args = []
         if fp16:
             for val in self.inputs_pth_fp16.values():
+                args.append(val)
+        elif int8:
+            for val in self.inputs_pth_int8.values():
                 args.append(val)
         else:
             for val in self.inputs_pth_fp32.values():
                 args.append(val)
         outputs_pth = model(*args)
-        return outputs_pth.cpu().numpy()
+        return outputs_pth.cpu().detach().numpy()
 
     @staticmethod
     def getCost(array_1, array_2):

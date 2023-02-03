@@ -1,6 +1,6 @@
 # BEVFormer on TensorRT
 
-This repository is a deployment project of [BEVFormer](https://github.com/fundamentalvision/BEVFormer) on [TensorRT](https://developer.nvidia.com/tensorrt), supporting **FP32/FP16/INT8** inference. Meanwhile, in order to improve the inference speed of BEVFormer on TensorRT, this project implements some TensorRT Ops that support [nv_half](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF__ARITHMETIC.html#group__CUDA__MATH____HALF__ARITHMETIC) and [nv_half2](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC). With the accuracy almost unaffected, the inference speed of the **BEVFormer base** can be increased by nearly **four times**, the engine size can be reduced by more than **90%**, and the GPU memory usage can be saved by more than **80%**. In addition, the project also supports common 2D object detection models in [MMDetection](https://github.com/open-mmlab/mmdetection), which support **INT8 Quantization** and **TensorRT Deployment** with a small number of code changes.
+This repository is a deployment project of [BEVFormer](https://github.com/fundamentalvision/BEVFormer) on [TensorRT](https://developer.nvidia.com/tensorrt), supporting **FP32/FP16/INT8** inference. Meanwhile, in order to improve the inference speed of BEVFormer on TensorRT, this project implements some TensorRT Ops that support [**nv_half**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF__ARITHMETIC.html#group__CUDA__MATH____HALF__ARITHMETIC),  [**nv_half2**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC) and **INT8**. With the accuracy almost unaffected, the inference speed of the **BEVFormer base** can be increased by nearly **four times**, the engine size can be reduced by more than **90%**, and the GPU memory usage can be saved by more than **80%**. In addition, the project also supports common 2D object detection models in [MMDetection](https://github.com/open-mmlab/mmdetection), which support **INT8 Quantization** and **TensorRT Deployment** with a small number of code changes.
 
 ## Benchmarks
 
@@ -262,7 +262,7 @@ Download above PyTorch checkpoints to `${PROJECT_DIR}/checkpoints/pytorch/`. The
 
 Support Common TensorRT Ops in BEVFormer: `Grid Sampler`, `Multi-scale Deformable Attention`, `Modulated Deformable Conv2d` and `Rotate`.
 
-Each operation is implemented as 2 versions: **FP32/FP16 (nv_half)** and **FP32/FP16 (nv_half2)**.
+Each operation is implemented as 2 versions: **FP32/FP16 (nv_half)/INT8** and **FP32/FP16 (nv_half2)/INT8**.
 
 For specific speed comparison, see [**Custom TensorRT Plugins**](./TensorRT/).
 

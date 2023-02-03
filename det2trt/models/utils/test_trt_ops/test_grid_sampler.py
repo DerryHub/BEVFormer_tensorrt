@@ -2,9 +2,9 @@ import torch
 import unittest
 from .base_test_case import BaseTestCase
 
-input_shape_2d = [8, 33, 100, 100]
+input_shape_2d = [8, 32, 100, 100]
 grid_shape_2d = [8, 2, 1001, 1001]
-output_shape_2d = [8, 33, 1001, 1001]
+output_shape_2d = [8, 32, 1001, 1001]
 
 input_shape_3d = [8, 32, 10, 10, 10]
 grid_shape_3d = [8, 3, 101, 101, 101]
@@ -111,6 +111,14 @@ class GridSampler2DTestCase(BaseTestCase, unittest.TestCase):
         for dic in self.models:
             output_pth = self.torchForward(dic["model_pth_fp16"], fp16=True)
             output_trt, t = self.engineForward(dic["engine_fp16"], fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
+    def int8_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True)
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
@@ -221,6 +229,60 @@ class GridSampler2DTestCase(BaseTestCase, unittest.TestCase):
 
     def test_fp16_bicubic_reflection_NoAlignCorners(self):
         self.fp16_case(0.05)
+
+    def test_int8_bilinear_zeros_alignCorners(self):
+        self.int8_case(0.1)
+
+    def test_int8_bilinear_zeros_NoAlignCorners(self):
+        self.int8_case(0.1)
+
+    def test_int8_bilinear_border_alignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_bilinear_border_NoAlignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_bilinear_reflection_alignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_bilinear_reflection_NoAlignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_nearest_zeros_alignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_nearest_zeros_NoAlignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_nearest_border_alignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_nearest_border_NoAlignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_nearest_reflection_alignCorners(self):
+        self.int8_case(0.35)
+
+    def test_int8_nearest_reflection_NoAlignCorners(self):
+        self.int8_case(0.35)
+
+    def test_int8_bicubic_zeros_alignCorners(self):
+        self.int8_case(0.15)
+
+    def test_int8_bicubic_zeros_NoAlignCorners(self):
+        self.int8_case(0.15)
+
+    def test_int8_bicubic_border_alignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_bicubic_border_NoAlignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_bicubic_reflection_alignCorners(self):
+        self.int8_case(0.3)
+
+    def test_int8_bicubic_reflection_NoAlignCorners(self):
+        self.int8_case(0.3)
 
 
 class GridSampler3DTestCase(BaseTestCase, unittest.TestCase):
@@ -509,6 +571,14 @@ class GridSampler2DTestCase2(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32_bilinear_zeros_alignCorners(self):
         self.fp32_case()
 
@@ -616,6 +686,60 @@ class GridSampler2DTestCase2(BaseTestCase, unittest.TestCase):
 
     def test_fp16_bicubic_reflection_NoAlignCorners(self):
         self.fp16_case(0.05)
+
+    def test_int8_bilinear_zeros_alignCorners(self):
+        self.int8_case(0.1)
+
+    def test_int8_bilinear_zeros_NoAlignCorners(self):
+        self.int8_case(0.1)
+
+    def test_int8_bilinear_border_alignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_bilinear_border_NoAlignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_bilinear_reflection_alignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_bilinear_reflection_NoAlignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_nearest_zeros_alignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_nearest_zeros_NoAlignCorners(self):
+        self.int8_case(0.2)
+
+    def test_int8_nearest_border_alignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_nearest_border_NoAlignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_nearest_reflection_alignCorners(self):
+        self.int8_case(0.35)
+
+    def test_int8_nearest_reflection_NoAlignCorners(self):
+        self.int8_case(0.35)
+
+    def test_int8_bicubic_zeros_alignCorners(self):
+        self.int8_case(0.15)
+
+    def test_int8_bicubic_zeros_NoAlignCorners(self):
+        self.int8_case(0.15)
+
+    def test_int8_bicubic_border_alignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_bicubic_border_NoAlignCorners(self):
+        self.int8_case(0.25)
+
+    def test_int8_bicubic_reflection_alignCorners(self):
+        self.int8_case(0.3)
+
+    def test_int8_bicubic_reflection_NoAlignCorners(self):
+        self.int8_case(0.3)
 
 
 class GridSampler3DTestCase2(BaseTestCase, unittest.TestCase):

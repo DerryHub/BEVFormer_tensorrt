@@ -21,6 +21,40 @@
 
 using helper::TensorDesc;
 
+template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
+  a = a > 127 ? 127 : a;
+  a = a < -128 ? -128 : a;
+  return int8_t(a);
+}
+
+__forceinline__ __device__ int8_t half2int8(const __half &hval,
+                                            const float &scale) {
+  int ret = __half2int_rn(__hdiv(hval, __float2half(scale)));
+  return T2int8<int>(ret);
+}
+
+__forceinline__ __device__ void qmulf(const int8_4 &a, int8_4 &c,
+                                      const float &b) {
+  c.x = T2int8<float>(a.x * b);
+  c.y = T2int8<float>(a.y * b);
+  c.z = T2int8<float>(a.z * b);
+  c.w = T2int8<float>(a.w * b);
+}
+
+__forceinline__ __device__ void dp4a(const int32_t *a, const int32_t *b,
+                                     int32_t &c) {
+#if __CUDA_ARCH__ >= 610
+  asm("dp4a.s32.s32 %0, %1, %2, %3;" : "+r"(c) : "r"(*a), "r"(*b), "r"(c));
+#else
+  auto ap = (int8_4 *)a, bp = (int8_4 *)b;
+
+  c += ap->x * bp->x;
+  c += ap->y * bp->y;
+  c += ap->z * bp->z;
+  c += ap->w * bp->w;
+#endif
+}
+
 // Unnormalizes a coordinate from the -1 to +1 scale to its pixel index value,
 // where we view each pixel as an area between (idx - 0.5) and (idx + 0.5).
 // if align_corners: -1 and +1 get sent to the centers of the corner pixels
@@ -393,14 +427,6 @@ static __forceinline__ __device__ bool within_bounds_2d(int h, int w, int H,
   return h >= 0 && h < H && w >= 0 && w < W;
 }
 
-static __forceinline__ __device__ __half2 within_bounds_2d_half2(__half2 h,
-                                                                 __half2 w,
-                                                                 __half2 H,
-                                                                 __half2 W) {
-  return __hmul2(__hmul2(__hge2(h, __float2half2_rn(0.)), __hlt2(h, H)),
-                 __hmul2(__hge2(w, __float2half2_rn(0.)), __hlt2(w, W)));
-}
-
 static __forceinline__ __device__ bool within_bounds_3d(int d, int h, int w,
                                                         int D, int H, int W) {
   return d >= 0 && d < D && h >= 0 && h < H && w >= 0 && w < W;
@@ -538,6 +564,40 @@ __device__ __forceinline__ __half2 cubic_interp1d(__half2 x0, __half2 x1,
                  __hadd2(__hmul2(x2, coeffs[2]), __hmul2(x3, coeffs[3])));
 }
 
+__device__ __forceinline__ int8_4 cubic_interp1d_int8(int8_4 x0, int8_4 x1,
+                                                      int8_4 x2, int8_4 x3,
+                                                      float t) {
+  float coeffs[4];
+  get_cubic_upsampling_coefficients(coeffs, t);
+  int8_4 weight = int8_4(int8_t(coeffs[0] * 127), int8_t(coeffs[1] * 127),
+                         int8_t(coeffs[2] * 127), int8_t(coeffs[3] * 127));
+
+  int8_4 x, output;
+  int32_t temp;
+
+  temp = 0;
+  x = {x0.x, x1.x, x2.x, x3.x};
+  dp4a((const int32_t *)&x, (const int32_t *)&weight, temp);
+  output.x = int8_t(temp / 127);
+
+  temp = 0;
+  x = {x0.y, x1.y, x2.y, x3.y};
+  dp4a((const int32_t *)&x, (const int32_t *)&weight, temp);
+  output.y = int8_t(temp / 127);
+
+  temp = 0;
+  x = {x0.z, x1.z, x2.z, x3.z};
+  dp4a((const int32_t *)&x, (const int32_t *)&weight, temp);
+  output.z = int8_t(temp / 127);
+
+  temp = 0;
+  x = {x0.w, x1.w, x2.w, x3.w};
+  dp4a((const int32_t *)&x, (const int32_t *)&weight, temp);
+  output.w = int8_t(temp / 127);
+
+  return output;
+}
+
 template <typename scalar_t>
 __forceinline__ __device__ scalar_t get_value_bounded(
     const scalar_t *data, scalar_t x, scalar_t y, int W, int H, int sW, int sH,
@@ -572,30 +632,21 @@ __forceinline__ __device__ __half2 get_value_bounded_h2(
   return __float2half2_rn(0.f);
 }
 
-__forceinline__ __device__ __half2 get_value_bounded_h2(
-    const __half *data, __half2 x, __half2 y, int W, int H, int sW, int sH,
+__forceinline__ __device__ int8_4 get_value_bounded_int8(
+    const int8_4 *data, __half2 xy, int W, int H, int sW, int sH,
     const GridSamplerPadding padding_mode, const bool align_corners) {
 
-  x = compute_coordinates(x, W, padding_mode, align_corners);
-  y = compute_coordinates(y, H, padding_mode, align_corners);
+  xy = compute_coordinates_h2(
+      xy, __floats2half2_rn(static_cast<float>(W), static_cast<float>(H)),
+      padding_mode, align_corners);
 
-  x = h2floor(x);
-  y = h2floor(y);
+  int ix = static_cast<int>(__low2float(xy));
+  int iy = static_cast<int>(__high2float(xy));
 
-  __half2 out = __float2half2_rn(0.f);
-
-  __half2 within_b =
-      within_bounds_2d_half2(y, x, __float2half2_rn(static_cast<float>(H)),
-                             __float2half2_rn(static_cast<float>(W)));
-  __half data_l = data[(static_cast<int>(__low2float(y)) * sH +
-                        static_cast<int>(__low2float(x)) * sW) *
-                       static_cast<int>(__low2float(within_b))];
-  __half data_h = data[(static_cast<int>(__high2float(y)) * sH +
-                        static_cast<int>(__high2float(x)) * sW) *
-                       static_cast<int>(__high2float(within_b))];
-  out = __hmul2(__halves2half2(data_l, data_h), within_b);
-
-  return out;
+  if (within_bounds_2d(iy, ix, H, W)) {
+    return data[iy * sH + ix * sW];
+  }
+  return 0;
 }
 
 template <typename scalar_t>
@@ -1009,6 +1060,194 @@ __global__ void grid_sampler_2d_kernel(
         *out_ptr_NCHW =
             cubic_interp1d(coefficients[0], coefficients[1], coefficients[2],
                            coefficients[3], __half2half2(__high2half(txy)));
+      }
+    }
+  }
+}
+
+__global__ void grid_sampler_2d_kernel_int8(
+    const int nthreads, const int8_4 *input, const float scale_i,
+    const int8_4 *grid, const float scale_g, int8_4 *output,
+    const float scale_o, TensorDesc input_desc, TensorDesc grid_desc,
+    TensorDesc output_desc, const GridSamplerInterpolation interpolation_mode,
+    const GridSamplerPadding padding_mode, const bool align_corners) {
+  int C = (input_desc.shape[1] + 3) / 4;
+  int inp_H = input_desc.shape[2];
+  int inp_W = input_desc.shape[3];
+  int out_H = grid_desc.shape[2];
+  int out_W = grid_desc.shape[3];
+  int inp_sC = input_desc.stride[1];
+  int inp_sH = input_desc.stride[2];
+  int inp_sW = input_desc.stride[3];
+  int inp_sN = inp_sC * C;
+  int grid_sN = grid_desc.stride[0] / 2;
+  int grid_sH = grid_desc.stride[2];
+  int grid_sW = grid_desc.stride[3];
+  int out_sC = output_desc.stride[1];
+  int out_sH = output_desc.stride[2];
+  int out_sW = output_desc.stride[3];
+  int out_sN = out_sC * C;
+
+  CUDA_1D_KERNEL_LOOP(index, nthreads) {
+    const int w = index % out_W;
+    const int h = (index / out_W) % out_H;
+    const int n = index / (out_H * out_W);
+    const int grid_offset = n * grid_sN + h * grid_sH + w * grid_sW;
+
+    // get the corresponding input x, y coordinates from grid
+    int8_4 grid_xy_q = grid[grid_offset];
+    __half2 grid_xy =
+        __floats2half2_rn(grid_xy_q.x * scale_g, grid_xy_q.y * scale_g);
+
+    __half2 ixy = grid_sampler_compute_source_index_h2(
+        grid_xy,
+        __floats2half2_rn(static_cast<float>(inp_W), static_cast<float>(inp_H)),
+        padding_mode, align_corners);
+
+    if (interpolation_mode == GridSamplerInterpolation::Bilinear) {
+      int32_t output_temp;
+      // get NE, NW, SE, SW pixel values from (x, y)
+      __half ix = __low2half(ixy);
+      __half iy = __high2half(ixy);
+      ixy = h2floor(ixy);
+      int ix_nw = static_cast<int>(__low2float(ixy));
+      int iy_nw = static_cast<int>(__high2float(ixy));
+      int ix_ne = ix_nw + 1;
+      int iy_ne = iy_nw;
+      int ix_sw = ix_nw;
+      int iy_sw = iy_nw + 1;
+      int ix_se = ix_nw + 1;
+      int iy_se = iy_nw + 1;
+
+      // get surfaces to each neighbor:
+      float scale_area = 1 / 128.f;
+      float scale_out = scale_area * scale_i / scale_o;
+      int8_4 weight;
+      weight.x = half2int8(__hmul(__hsub(static_cast<__half>(ix_se), ix),
+                                  __hsub(static_cast<__half>(iy_se), iy)),
+                           scale_area);
+      weight.y = half2int8(__hmul(__hsub(ix, static_cast<__half>(ix_sw)),
+                                  __hsub(static_cast<__half>(iy_sw), iy)),
+                           scale_area);
+      weight.z = half2int8(__hmul(__hsub(static_cast<__half>(ix_ne), ix),
+                                  __hsub(iy, static_cast<__half>(iy_ne))),
+                           scale_area);
+      weight.w = half2int8(__hmul(__hsub(ix, static_cast<__half>(ix_nw)),
+                                  __hsub(iy, static_cast<__half>(iy_nw))),
+                           scale_area);
+      int8_4 inps[4];
+
+      // calculate bilinear weighted pixel value and set output pixel
+      auto inp_ptr_NC = input + n * inp_sN;
+      auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
+      for (int c = 0; c < C;
+           ++c, inp_ptr_NC += inp_sC, out_ptr_NCHW += out_sC) {
+        if (within_bounds_2d(iy_nw, ix_nw, inp_H, inp_W)) {
+          const int8_4 &inp = inp_ptr_NC[iy_nw * inp_sH + ix_nw * inp_sW];
+          inps[0].x = inp.x;
+          inps[1].x = inp.y;
+          inps[2].x = inp.z;
+          inps[3].x = inp.w;
+        }
+        if (within_bounds_2d(iy_ne, ix_ne, inp_H, inp_W)) {
+          const int8_4 &inp = inp_ptr_NC[iy_ne * inp_sH + ix_ne * inp_sW];
+          inps[0].y = inp.x;
+          inps[1].y = inp.y;
+          inps[2].y = inp.z;
+          inps[3].y = inp.w;
+        }
+        if (within_bounds_2d(iy_sw, ix_sw, inp_H, inp_W)) {
+          const int8_4 &inp = inp_ptr_NC[iy_sw * inp_sH + ix_sw * inp_sW];
+          inps[0].z = inp.x;
+          inps[1].z = inp.y;
+          inps[2].z = inp.z;
+          inps[3].z = inp.w;
+        }
+        if (within_bounds_2d(iy_se, ix_se, inp_H, inp_W)) {
+          const int8_4 &inp = inp_ptr_NC[iy_se * inp_sH + ix_se * inp_sW];
+          inps[0].w = inp.x;
+          inps[1].w = inp.y;
+          inps[2].w = inp.z;
+          inps[3].w = inp.w;
+        }
+        output_temp = 0;
+        dp4a((const int32_t *)inps, (const int32_t *)&weight, output_temp);
+        out_ptr_NCHW->x = T2int8<float>(output_temp * scale_out);
+
+        output_temp = 0;
+        dp4a((const int32_t *)(inps + 1), (const int32_t *)&weight,
+             output_temp);
+        out_ptr_NCHW->y = T2int8<float>(output_temp * scale_out);
+
+        output_temp = 0;
+        dp4a((const int32_t *)(inps + 2), (const int32_t *)&weight,
+             output_temp);
+        out_ptr_NCHW->z = T2int8<float>(output_temp * scale_out);
+
+        output_temp = 0;
+        dp4a((const int32_t *)(inps + 3), (const int32_t *)&weight,
+             output_temp);
+        out_ptr_NCHW->w = T2int8<float>(output_temp * scale_out);
+      }
+    } else if (interpolation_mode == GridSamplerInterpolation::Nearest) {
+      ixy = h2rint(ixy);
+      int ix_nearest = static_cast<int>(__low2float(ixy));
+      int iy_nearest = static_cast<int>(__high2float(ixy));
+      float scale_out = scale_i / scale_o;
+
+      // assign nearest neighbor pixel value to output pixel
+      auto inp_ptr_NC = input + n * inp_sN;
+      auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
+      for (int c = 0; c < C;
+           ++c, inp_ptr_NC += inp_sC, out_ptr_NCHW += out_sC) {
+        if (within_bounds_2d(iy_nearest, ix_nearest, inp_H, inp_W)) {
+          const int8_4 &inp =
+              inp_ptr_NC[iy_nearest * inp_sH + ix_nearest * inp_sW];
+          qmulf(inp, *out_ptr_NCHW, scale_out);
+        } else {
+          *out_ptr_NCHW = 0;
+        }
+      }
+    } else if (interpolation_mode == GridSamplerInterpolation::Bicubic) {
+      ixy = grid_sampler_unnormalize_h2(
+          grid_xy,
+          __floats2half2_rn(static_cast<float>(inp_W),
+                            static_cast<float>(inp_H)),
+          align_corners);
+
+      __half2 ixy_nw = h2floor(ixy);
+      const __half2 txy = __hsub2(ixy, ixy_nw);
+      float scale_out = scale_i / scale_o;
+      int8_4 temp;
+      int8_4 coefficients[4];
+
+      auto inp_ptr_NC = input + n * inp_sN;
+      auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
+      for (int c = 0; c < C;
+           ++c, inp_ptr_NC += inp_sC, out_ptr_NCHW += out_sC) {
+
+#pragma unroll 4
+        for (int i = 0; i < 4; ++i) {
+          coefficients[i] = cubic_interp1d_int8(
+              get_value_bounded_int8(
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(-1.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
+              get_value_bounded_int8(
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(0.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
+              get_value_bounded_int8(
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(1.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
+              get_value_bounded_int8(
+                  inp_ptr_NC, __hadd2(ixy_nw, __floats2half2_rn(2.f, i - 1.f)),
+                  inp_W, inp_H, inp_sW, inp_sH, padding_mode, align_corners),
+              __half2float(__low2half(txy)));
+        }
+
+        temp = cubic_interp1d_int8(coefficients[0], coefficients[1],
+                                   coefficients[2], coefficients[3],
+                                   __half2float(__high2half(txy)));
+        qmulf(temp, *out_ptr_NCHW, scale_out);
       }
     }
   }
@@ -1751,6 +1990,41 @@ void grid_sample(__half2 *output, const __half2 *input, const __half2 *grid,
             interp, padding, align_corners);
   } else {
     printf("input and grid dims should be 4 or 5\n");
+  }
+}
+
+void grid_sample_int8(int8_4 *output, const float &scale_o, const int8_4 *input,
+                      const float &scale_i, const int8_4 *grid,
+                      const float &scale_g, int *output_dims, int *input_dims,
+                      int *grid_dims, int nb_dims,
+                      GridSamplerInterpolation interp,
+                      GridSamplerPadding padding, bool align_corners,
+                      cudaStream_t stream) {
+  TensorDesc input_desc;
+  create_desc(input_dims, nb_dims, input_desc);
+
+  TensorDesc output_desc;
+  create_desc(output_dims, nb_dims, output_desc);
+
+  TensorDesc grid_desc;
+  create_desc(grid_dims, nb_dims, grid_desc);
+
+  int count = 1;
+  for (int i = 0; i < nb_dims; ++i) {
+    if (i == 1) {
+      continue;
+    } else {
+      count *= output_desc.shape[i];
+    }
+  }
+
+  if (nb_dims == 4) {
+    grid_sampler_2d_kernel_int8<<<GET_BLOCKS(count), THREADS_PER_BLOCK, 0,
+                                  stream>>>(
+        count, input, scale_i, grid, scale_g, output, scale_o, input_desc,
+        grid_desc, output_desc, interp, padding, align_corners);
+  } else {
+    printf("input and grid dims should be 4\n");
   }
 }
 

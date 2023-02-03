@@ -115,9 +115,12 @@ int32_t GridSamplerPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
   Dims input_dims = inputDesc[0].dims;
   Dims grid_dims = inputDesc[1].dims;
   Dims output_dims = outputDesc[0].dims;
+  const float scale_o = outputDesc[0].scale, scale_i = inputDesc[0].scale,
+              scale_g = inputDesc[1].scale;
 
   auto data_type = inputDesc[0].type;
-  ASSERT(data_type == DataType::kFLOAT || data_type == DataType::kHALF)
+  ASSERT(data_type == DataType::kFLOAT || data_type == DataType::kHALF ||
+         data_type == DataType::kINT8)
 
   switch (data_type) {
   case DataType::kFLOAT:
@@ -138,6 +141,12 @@ int32_t GridSamplerPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
           &(output_dims.d[0]), &(input_dims.d[0]), &(grid_dims.d[0]),
           input_dims.nbDims, mMode, mPaddingMode, mAlignCorners, stream);
     }
+    break;
+  case DataType::kINT8:
+    grid_sample_int8((int8_4 *)outputs[0], scale_o, (int8_4 *)inputs[0],
+                     scale_i, (int8_4 *)inputs[1], scale_g, &(output_dims.d[0]),
+                     &(input_dims.d[0]), &(grid_dims.d[0]), input_dims.nbDims,
+                     mMode, mPaddingMode, mAlignCorners, stream);
     break;
   default:
     return 1;
@@ -164,7 +173,16 @@ bool GridSamplerPlugin::supportsFormatCombination(
       return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
               inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
              (inOut[pos].type == nvinfer1::DataType::kHALF &&
-              inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW2) ||
+             (inOut[pos].type == nvinfer1::DataType::kINT8 &&
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
+    }
+    if (!m3D) {
+      return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
+               inOut[pos].type == nvinfer1::DataType::kHALF) &&
+              inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
+             (inOut[pos].type == nvinfer1::DataType::kINT8 &&
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
     }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
