@@ -24,9 +24,7 @@ class Calibrator(trt.IInt8MinMaxCalibrator):
             size = trt.volume(shape)
             host_mem = cuda.pagelocked_empty(size, np.float32)
             device_mem = cuda.mem_alloc(host_mem.nbytes)
-            self.inputs[name] = HostDeviceMem(
-                name, host_mem, device_mem
-            )
+            self.inputs[name] = HostDeviceMem(name, host_mem, device_mem)
         self.iter_num = 1
 
     def set_inputs(self, inputs):
@@ -34,8 +32,7 @@ class Calibrator(trt.IInt8MinMaxCalibrator):
             np_input = inputs[name]
             self.inputs[name].host = np_input.reshape(-1).astype(np.float32)
             cuda.memcpy_htod(
-                self.inputs[name].device,
-                self.inputs[name].host,
+                self.inputs[name].device, self.inputs[name].host,
             )
 
     def get_batch(self, names):
@@ -68,10 +65,12 @@ def createModel(
             self.module = module
             self.kwargs = kwargs
             if int8:
-                assert len(output_shapes['output']) == 4
-                channel = output_shapes['output'][1]
+                assert len(output_shapes["output"]) == 4
+                channel = output_shapes["output"][1]
                 self.conv = nn.Conv2d(channel, channel, 1, bias=False)
-                self.conv.weight = nn.Parameter(torch.eye(channel).view(channel, channel, 1, 1))
+                self.conv.weight = nn.Parameter(
+                    torch.eye(channel).view(channel, channel, 1, 1)
+                )
 
         def forward(self, *inputs):
             output = self.module(*inputs, **self.kwargs)

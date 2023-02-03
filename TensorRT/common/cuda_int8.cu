@@ -3,4 +3,3 @@
 //
 
 #include "cuda_int8.h"
-

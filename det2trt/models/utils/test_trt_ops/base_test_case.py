@@ -112,7 +112,7 @@ class BaseTestCase:
                     self.inputs_pth_int8,
                     opset_version=opset_version,
                     int8=True,
-                    calibrator=calibrator
+                    calibrator=calibrator,
                 )
                 dic["engine_int8"] = engine
             else:
