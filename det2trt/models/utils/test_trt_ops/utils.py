@@ -3,6 +3,7 @@ import os
 
 import torch
 import torch.nn as nn
+import numpy as np
 import tensorrt as trt
 import tempfile
 from torch.onnx import OperatorExportTypes
@@ -14,8 +15,47 @@ TRT_LOGGER = trt.Logger(trt.Logger.INTERNAL_ERROR)
 EXPLICIT_BATCH = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
 
 
+class Calibrator(trt.IInt8MinMaxCalibrator):
+    def __init__(self, input_shapes):
+        super(Calibrator, self).__init__()
+        self.inputs = {}
+        for name in input_shapes.keys():
+            shape = input_shapes[name]
+            size = trt.volume(shape)
+            host_mem = cuda.pagelocked_empty(size, np.float32)
+            device_mem = cuda.mem_alloc(host_mem.nbytes)
+            self.inputs[name] = HostDeviceMem(
+                name, host_mem, device_mem
+            )
+        self.iter_num = 1
+
+    def set_inputs(self, inputs):
+        for name in self.inputs.keys():
+            np_input = inputs[name]
+            self.inputs[name].host = np_input.reshape(-1).astype(np.float32)
+            cuda.memcpy_htod(
+                self.inputs[name].device,
+                self.inputs[name].host,
+            )
+
+    def get_batch(self, names):
+        if self.iter_num == 0:
+            return None
+        self.iter_num -= 1
+        return [int(self.inputs[name].device) for name in names]
+
+    def get_batch_size(self):
+        return 1
+
+    def read_calibration_cache(self):
+        pass
+
+    def write_calibration_cache(self, cache):
+        pass
+
+
 def createModel(
-    module, input_shapes, output_shapes, device="cuda", fp16=False, **kwargs
+    module, input_shapes, output_shapes, device="cuda", fp16=False, int8=False, **kwargs
 ):
     assert device in ["cuda", "cpu"]
     assert isinstance(input_shapes, dict) and isinstance(output_shapes, dict)
@@ -27,9 +67,16 @@ def createModel(
             self.output_shapes = output_shapes
             self.module = module
             self.kwargs = kwargs
+            if int8:
+                assert len(output_shapes['output']) == 4
+                channel = output_shapes['output'][1]
+                self.conv = nn.Conv2d(channel, channel, 1, bias=False)
+                self.conv.weight = nn.Parameter(torch.eye(channel).view(channel, channel, 1, 1))
 
         def forward(self, *inputs):
             output = self.module(*inputs, **self.kwargs)
+            if int8:
+                return self.conv(output)
             return output
 
     model = Model().half() if fp16 else Model()
@@ -37,7 +84,7 @@ def createModel(
 
 
 def build_engine(
-    onnx_file, int8=False, fp16=False, max_workspace_size=1,
+    onnx_file, int8=False, fp16=False, max_workspace_size=1, calibrator=None
 ):
     """Takes an ONNX file and creates a TensorRT engine to run inference with"""
     with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
@@ -59,6 +106,7 @@ def build_engine(
 
         if int8:
             config.set_flag(trt.BuilderFlag.INT8)
+            config.int8_calibrator = calibrator
 
         if fp16:
             config.set_flag(trt.BuilderFlag.FP16)
@@ -68,7 +116,7 @@ def build_engine(
         return engine
 
 
-def pth2trt(module, inputs, opset_version=13, fp16=False):
+def pth2trt(module, inputs, opset_version=13, fp16=False, int8=False, calibrator=None):
     fd, path = tempfile.mkstemp()
     args = tuple([inputs[key] for key in inputs.keys()])
     try:
@@ -82,7 +130,7 @@ def pth2trt(module, inputs, opset_version=13, fp16=False):
             operator_export_type=OperatorExportTypes.ONNX_FALLTHROUGH,
         )
         with open(path, "rb") as f:
-            engine = build_engine(f, fp16=fp16)
+            engine = build_engine(f, fp16=fp16, int8=int8, calibrator=calibrator)
     finally:
         os.remove(path)
     return engine
