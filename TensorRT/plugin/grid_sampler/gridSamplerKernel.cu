@@ -1120,7 +1120,7 @@ __global__ void grid_sampler_2d_kernel_int8(
       int iy_se = iy_nw + 1;
 
       // get surfaces to each neighbor:
-      float scale_area = 1 / 128.f;
+      float scale_area = 1 / 127.f;
       float scale_out = scale_area * scale_i / scale_o;
       int8_4 weight;
       weight.x = half2int8(__hmul(__hsub(static_cast<__half>(ix_se), ix),
