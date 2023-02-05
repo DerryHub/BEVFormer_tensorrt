@@ -82,18 +82,33 @@ size_t ModulatedDeformableConv2dPlugin::getWorkspaceSize(
   case nvinfer1::DataType::kHALF:
     sizeof_dtype = 2;
     break;
+  case nvinfer1::DataType::kINT8:
+    sizeof_dtype = 1;
+    break;
   }
 
   size_t nInputPlane = inputs[0].dims.d[1];
 
+  size_t nOutputPlane = outputs[0].dims.d[1];
   size_t outputHeight = outputs[0].dims.d[2];
   size_t outputWidth = outputs[0].dims.d[3];
 
   size_t kW = inputs[3].dims.d[2];
   size_t kH = inputs[3].dims.d[3];
 
-  size_t col_size = (nInputPlane + 1) / 2 * 2 * kW * kH * outputHeight *
-                    outputWidth * sizeof_dtype;
+  size_t col_size;
+  if (sizeof_dtype == 2) {
+    col_size = (nInputPlane + 1) / 2 * 2 * kW * kH * outputHeight *
+               outputWidth * sizeof_dtype;
+  } else if (sizeof_dtype == 1) {
+    col_size = (nInputPlane + 3) / 4 * 4 * kW * kH * outputHeight *
+               outputWidth * sizeof_dtype;
+    col_size += nOutputPlane / mGroup * outputHeight * outputWidth * 4;
+  } else {
+    col_size =
+        nInputPlane * kW * kH * outputHeight * outputWidth * sizeof_dtype;
+  }
+
   col_size = size_t((col_size + 16 - 1) / 16) * 16;
   return col_size;
 }
@@ -109,6 +124,9 @@ int32_t ModulatedDeformableConv2dPlugin::enqueue(
   int channels_out = outputDesc[0].dims.d[1];
   int kernel_h = inputDesc[3].dims.d[2];
   int kernel_w = inputDesc[3].dims.d[3];
+  const float scale_o = outputDesc[0].scale, scale_i = inputDesc[0].scale,
+              scale_off = inputDesc[1].scale, scale_mask = inputDesc[2].scale,
+              scale_w = inputDesc[3].scale;
 
   const void *x = inputs[0];
   const void *offset = inputs[1];
@@ -146,6 +164,15 @@ int32_t ModulatedDeformableConv2dPlugin::enqueue(
           mDeformableGroup, im2col_step, m_cublas_handle, stream);
     }
     break;
+  case nvinfer1::DataType::kINT8:
+    ModulatedDeformConvForwardCUDAKernel_int8(
+        (int8_4 *)x, scale_i, (int8_4 *)weight, scale_w, (float *)bias,
+        (int8_t *)offset, scale_off, (int8_t *)mask, scale_mask,
+        (int8_t *)output, scale_o, workSpace, batch, channels, height, width,
+        channels_out, kernel_w, kernel_h, mStride.d[0], mStride.d[1],
+        mPadding.d[0], mPadding.d[1], mDilation.d[0], mDilation.d[1], mGroup,
+        mDeformableGroup, im2col_step, m_cublas_handle, stream);
+    break;
   default:
     return 1;
   }
@@ -175,13 +202,21 @@ bool ModulatedDeformableConv2dPlugin::supportsFormatCombination(
       return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
               inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
              (inOut[pos].type == nvinfer1::DataType::kHALF &&
-              inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW2) ||
+             (inOut[pos].type == nvinfer1::DataType::kINT8 &&
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
     }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
-            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
-
-  } else if ((nbInputs == 5 && pos == 4) || pos == nbInputs || pos == 2) {
+            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
+           (inOut[pos].type == nvinfer1::DataType::kINT8 &&
+            inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
+  } else if (nbInputs == 5 && pos == 4 &&
+             inOut[0].type == nvinfer1::DataType::kINT8) {
+    return inOut[pos].type == nvinfer1::DataType::kFLOAT &&
+           inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
+  } else if ((nbInputs == 5 && pos == 4) || pos == nbInputs || pos == 2 ||
+             (pos == 1 && inOut[0].type == nvinfer1::DataType::kINT8)) {
     return inOut[pos].type == inOut[0].type &&
            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
   } else {
@@ -239,6 +274,14 @@ void ModulatedDeformableConv2dPlugin::configurePlugin(
     const nvinfer1::DynamicPluginTensorDesc *outputs, int nbOutputs) noexcept {
   if (nbInputs == 5) {
     mWithBias = true;
+  }
+  int channels_out = outputs[0].desc.dims.d[1];
+  int channels_in = inputs[0].desc.dims.d[1];
+  if (channels_out % mGroup != 0 || channels_in % mGroup != 0) {
+    printf("%s (channels_out = %d, channels_in = %d, group = %d): channels mod "
+           "group should be zero.",
+           this->getPluginType(), channels_out, channels_in, mGroup);
+    exit(1);
   }
   if (use_h2) {
     int channels = inputs[0].desc.dims.d[1];

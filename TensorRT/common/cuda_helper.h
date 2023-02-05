@@ -61,6 +61,13 @@ cublasStatus_t cublasGemmWrap(cublasHandle_t handle, cublasOperation_t transa,
                               const scalar_t *B, int ldb, const scalar_t *beta,
                               scalar_t *C, int ldc);
 
+cublasStatus_t cublasGemmWrap_int8(cublasHandle_t handle,
+                                   cublasOperation_t transa,
+                                   cublasOperation_t transb, int m, int n,
+                                   int k, const int32_t *alpha, const int8_t *A,
+                                   int lda, const int8_t *B, int ldb,
+                                   const int32_t *beta, int32_t *C, int ldc);
+
 template <typename scalar_t>
 __device__ __forceinline__ scalar_t
 bilinear_interpolate(const scalar_t *__restrict__ input, const int height,

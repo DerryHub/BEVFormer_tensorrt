@@ -108,3 +108,14 @@ cublasGemmWrap<half>(cublasHandle_t handle, cublasOperation_t transa,
                       lda, B, CUDA_R_16F, ldb, beta, C, CUDA_R_16F, ldc,
                       CUDA_R_16F, CUBLAS_GEMM_DFALT_TENSOR_OP);
 }
+
+cublasStatus_t cublasGemmWrap_int8(cublasHandle_t handle,
+                                   cublasOperation_t transa,
+                                   cublasOperation_t transb, int m, int n,
+                                   int k, const int32_t *alpha, const int8_t *A,
+                                   int lda, const int8_t *B, int ldb,
+                                   const int32_t *beta, int32_t *C, int ldc) {
+  return cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, CUDA_R_8I, lda,
+                      B, CUDA_R_8I, ldb, beta, C, CUDA_R_32I, ldc, CUDA_R_32I,
+                      CUBLAS_GEMM_DFALT_TENSOR_OP);
+}

@@ -13,6 +13,41 @@
 #include "helper.h"
 #include "modulatedDeformableConv2dKernel.h"
 #include <cstdio>
+#include <unistd.h>
+
+template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
+  a = a > 127 ? 127 : a;
+  a = a < -128 ? -128 : a;
+  return int8_t(a);
+}
+
+__forceinline__ __device__ int8_t half2int8(const __half &hval,
+                                            const float &scale) {
+  int ret = __half2int_rn(__hdiv(hval, __float2half(scale)));
+  return T2int8<int>(ret);
+}
+
+__forceinline__ __device__ void qmulf(const int8_4 &a, int8_4 &c,
+                                      const float &b) {
+  c.x = T2int8<float>(a.x * b);
+  c.y = T2int8<float>(a.y * b);
+  c.z = T2int8<float>(a.z * b);
+  c.w = T2int8<float>(a.w * b);
+}
+
+__forceinline__ __device__ void dp4a(const int32_t *a, const int32_t *b,
+                                     int32_t &c) {
+#if __CUDA_ARCH__ >= 610
+  asm("dp4a.s32.s32 %0, %1, %2, %3;" : "+r"(c) : "r"(*a), "r"(*b), "r"(c));
+#else
+  auto ap = (int8_4 *)a, bp = (int8_4 *)b;
+
+  c += ap->x * bp->x;
+  c += ap->y * bp->y;
+  c += ap->z * bp->z;
+  c += ap->w * bp->w;
+#endif
+}
 
 template <typename scalar_t>
 __device__ scalar_t dmcn_im2col_bilinear(const scalar_t *input,
@@ -119,81 +154,74 @@ __device__ __half2 dmcn_im2col_bilinear_h2(const __half2 *input,
   return val;
 }
 
-__device__ __half2 dmcn_im2col_bilinear_h2_(const __half *input,
-                                            const int data_width,
-                                            const int height, const int width,
-                                            __half2 h, __half2 w,
-                                            __half2 within_) {
-  __half2 h_low = h2floor(h);
-  __half2 w_low = h2floor(w);
-  __half2 h_high = __hadd2(h_low, __float2half2_rn(1.f));
-  __half2 w_high = __hadd2(w_low, __float2half2_rn(1.f));
+__forceinline__ __device__ void
+dmcn_im2col_bilinear_int8(const int8_4 *input, const float &scale_i,
+                          const int data_width, const int height,
+                          const int width, __half2 hw, int8_4 &output) {
+  __half2 hw_low = h2floor(hw);
+  __half2 hw_high = __hadd2(hw_low, __float2half2_rn(1.f));
+  __half2 lhw = __hsub2(hw, hw_low);
+  __half2 hhw = __hsub2(__float2half2_rn(1.f), lhw);
 
-  __half2 lh = __hsub2(h, h_low);
-  __half2 lw = __hsub2(w, w_low);
-  __half2 hh = __hsub2(__float2half2_rn(1.f), lh),
-          hw = __hsub2(__float2half2_rn(1.f), lw);
+  const float scale_area = 1 / 127.f;
+  int8_4 weight = {
+      half2int8(__hmul(__low2half(hhw), __high2half(hhw)), scale_area),
+      half2int8(__hmul(__low2half(hhw), __high2half(lhw)), scale_area),
+      half2int8(__hmul(__low2half(lhw), __high2half(hhw)), scale_area),
+      half2int8(__hmul(__low2half(lhw), __high2half(lhw)), scale_area)};
 
-  __half inp_1, inp_2;
-  __half2 within;
+  int h_low = static_cast<int>(__low2float(hw_low)),
+      w_low = static_cast<int>(__high2float(hw_low)),
+      h_high = static_cast<int>(__low2float(hw_high)),
+      w_high = static_cast<int>(__high2float(hw_high));
+  int8_4 inps[4] = {0, 0, 0, 0};
+  int32_t output_temp;
 
-  __half2 v1 = __float2half2_rn(0.f);
-  within = __hmul2(__hmul2(__hge2(h_low, __float2half2_rn(0.f)),
-                           __hge2(w_low, __float2half2_rn(0.f))),
-                   within_);
-  inp_1 = input[(static_cast<int>(__low2float(h_low)) * data_width +
-                 static_cast<int>(__low2float(w_low))) *
-                static_cast<int>(__low2float(within))];
-  inp_2 = input[(static_cast<int>(__high2float(h_low)) * data_width +
-                 static_cast<int>(__high2float(w_low))) *
-                static_cast<int>(__high2float(within))];
-  v1 = __hmul2(__halves2half2(inp_1, inp_2), within);
+  if (h_low >= 0 && w_low >= 0) {
+    const int8_4 &inp = input[h_low * data_width + w_low];
+    inps[0].x = inp.x;
+    inps[1].x = inp.y;
+    inps[2].x = inp.z;
+    inps[3].x = inp.w;
+  }
+  if (h_low >= 0 && w_high < width) {
+    const int8_4 &inp = input[h_low * data_width + w_high];
+    inps[0].y = inp.x;
+    inps[1].y = inp.y;
+    inps[2].y = inp.z;
+    inps[3].y = inp.w;
+  }
+  if (h_high < height && w_low >= 0) {
+    const int8_4 &inp = input[h_high * data_width + w_low];
+    inps[0].z = inp.x;
+    inps[1].z = inp.y;
+    inps[2].z = inp.z;
+    inps[3].z = inp.w;
+  }
+  if (h_high < height && w_high < width) {
+    const int8_4 &inp = input[h_high * data_width + w_high];
+    inps[0].w = inp.x;
+    inps[1].w = inp.y;
+    inps[2].w = inp.z;
+    inps[3].w = inp.w;
+  }
 
-  __half2 v2 = __float2half2_rn(0.f);
-  within = __hmul2(
-      __hmul2(__hge2(h_low, __float2half2_rn(0.f)),
-              __hle2(w_high, __float2half2_rn(static_cast<float>(width - 1)))),
-      within_);
-  inp_1 = input[(static_cast<int>(__low2float(h_low)) * data_width +
-                 static_cast<int>(__low2float(w_high))) *
-                static_cast<int>(__low2float(within))];
-  inp_2 = input[(static_cast<int>(__high2float(h_low)) * data_width +
-                 static_cast<int>(__high2float(w_high))) *
-                static_cast<int>(__high2float(within))];
-  v2 = __hmul2(__halves2half2(inp_1, inp_2), within);
+  output_temp = 0;
+  dp4a((const int32_t *)inps, (const int32_t *)&weight, output_temp);
+  output.x = T2int8<float>(output_temp * scale_area);
+  ;
 
-  __half2 v3 = __float2half2_rn(0.f);
-  within = __hmul2(
-      __hmul2(__hle2(h_high, __float2half2_rn(static_cast<float>(height - 1))),
-              __hge2(w_low, __float2half2_rn(0.f))),
-      within_);
-  inp_1 = input[(static_cast<int>(__low2float(h_high)) * data_width +
-                 static_cast<int>(__low2float(w_low))) *
-                static_cast<int>(__low2float(within))];
-  inp_2 = input[(static_cast<int>(__high2float(h_high)) * data_width +
-                 static_cast<int>(__high2float(w_low))) *
-                static_cast<int>(__high2float(within))];
-  v3 = __hmul2(__halves2half2(inp_1, inp_2), within);
+  output_temp = 0;
+  dp4a((const int32_t *)(inps + 1), (const int32_t *)&weight, output_temp);
+  output.y = T2int8<float>(output_temp * scale_area);
 
-  __half2 v4 = __float2half2_rn(0.f);
-  within = __hmul2(
-      __hmul2(__hle2(h_high, __float2half2_rn(static_cast<float>(height - 1))),
-              __hle2(w_high, __float2half2_rn(static_cast<float>(width - 1)))),
-      within_);
-  inp_1 = input[(static_cast<int>(__low2float(h_high)) * data_width +
-                 static_cast<int>(__low2float(w_high))) *
-                static_cast<int>(__low2float(within))];
-  inp_2 = input[(static_cast<int>(__high2float(h_high)) * data_width +
-                 static_cast<int>(__high2float(w_high))) *
-                static_cast<int>(__high2float(within))];
-  v4 = __hmul2(__halves2half2(inp_1, inp_2), within);
+  output_temp = 0;
+  dp4a((const int32_t *)(inps + 2), (const int32_t *)&weight, output_temp);
+  output.z = T2int8<float>(output_temp * scale_area);
 
-  __half2 w1 = __hmul2(hh, hw), w2 = __hmul2(hh, lw), w3 = __hmul2(lh, hw),
-          w4 = __hmul2(lh, lw);
-
-  __half2 val = __hadd2(__hadd2(__hmul2(w1, v1), __hmul2(w2, v2)),
-                        __hadd2(__hmul2(w3, v3), __hmul2(w4, v4)));
-  return val;
+  output_temp = 0;
+  dp4a((const int32_t *)(inps + 3), (const int32_t *)&weight, output_temp);
+  output.w = T2int8<float>(output_temp * scale_area);
 }
 
 template <typename scalar_t>
@@ -400,6 +428,94 @@ __global__ void modulated_deformable_im2col_gpu_kernel_h2(
   }
 }
 
+__global__ void modulated_deformable_im2col_gpu_kernel_int8(
+    const int n, const int8_4 *data_im, const float scale_i,
+    const int8_t *data_offset, const float scale_off, const int8_t *data_mask,
+    const float scale_mask, const int height, const int width,
+    const int kernel_h, const int kernel_w, const int pad_h, const int pad_w,
+    const int stride_h, const int stride_w, const int dilation_h,
+    const int dilation_w, const int channel_per_deformable_group,
+    const int batch_size, const int num_channels, const int deformable_group,
+    const int height_col, const int width_col, int8_4 *data_col) {
+  CUDA_1D_KERNEL_LOOP(index, n) {
+    // index of output matrix
+    const int w_col = index % width_col;
+    const int h_col = (index / width_col) % height_col;
+    const int b_col = (index / width_col / height_col) % batch_size;
+    const int c_im = (index / width_col / height_col) / batch_size;
+    const int c_col = c_im * kernel_h * kernel_w;
+
+    // compute deformable group index
+    const int deformable_group_index = c_im / channel_per_deformable_group;
+
+    const int h_in = h_col * stride_h - pad_h;
+    const int w_in = w_col * stride_w - pad_w;
+
+    auto *data_col_ptr =
+        (int8_t *)data_col +
+        ((c_col * 4 * batch_size + b_col * 4) * height_col + h_col) *
+            width_col +
+        w_col;
+    const int8_4 *data_im_ptr =
+        data_im + (b_col * ((num_channels + 3) / 4) + c_im) * height * width;
+    const int8_t *data_offset_ptr =
+        data_offset + (b_col * deformable_group + deformable_group_index) *
+                          kernel_h * kernel_w * height_col * width_col * 2;
+
+    const int8_t *data_mask_ptr =
+        data_mask + (b_col * deformable_group + deformable_group_index) *
+                        kernel_h * kernel_w * height_col * width_col;
+    const int32_t output_step = batch_size * height_col * width_col;
+
+    __half2 condition;
+    for (int i = 0; i < kernel_h; ++i) {
+      for (int j = 0; j < kernel_w; ++j) {
+        const int data_offset_h_ptr =
+            ((2 * (i * kernel_w + j)) * height_col + h_col) * width_col + w_col;
+        const int data_offset_w_ptr =
+            ((2 * (i * kernel_w + j) + 1) * height_col + h_col) * width_col +
+            w_col;
+        const int data_mask_hw_ptr =
+            ((i * kernel_w + j) * height_col + h_col) * width_col + w_col;
+
+        const __half2 offset_hw =
+            __floats2half2_rn(data_offset_ptr[data_offset_h_ptr] * scale_off,
+                              data_offset_ptr[data_offset_w_ptr] * scale_off);
+
+        const float mask = data_mask_ptr[data_mask_hw_ptr] * scale_mask;
+
+        const __half2 hw_im =
+            __hadd2(offset_hw,
+                    __hfma2(__floats2half2_rn(static_cast<float>(i),
+                                              static_cast<float>(j)),
+                            __floats2half2_rn(static_cast<float>(dilation_h),
+                                              static_cast<float>(dilation_w)),
+                            __floats2half2_rn(static_cast<float>(h_in),
+                                              static_cast<float>(w_in))));
+        condition = __hmul2(
+            __hgt2(hw_im, __float2half2_rn(-1.f)),
+            __hlt2(hw_im, __floats2half2_rn(static_cast<float>(height),
+                                            static_cast<float>(width))));
+        int8_4 val = 0;
+        if (__low2float(condition) * __high2float(condition)) {
+          dmcn_im2col_bilinear_int8(data_im_ptr, scale_i, width, height, width,
+                                    hw_im, val);
+        }
+        qmulf(val, val, mask);
+
+        *data_col_ptr = val.x;
+        data_col_ptr += output_step;
+        *data_col_ptr = val.y;
+        data_col_ptr += output_step;
+        *data_col_ptr = val.z;
+        data_col_ptr += output_step;
+        *data_col_ptr = val.w;
+        data_col_ptr += output_step;
+      }
+    }
+  }
+}
+
 template <typename scalar_t>
 __global__ void output_add_bias_kernel(scalar_t *output, const scalar_t *bias,
                                        size_t step_batch, size_t step_channel,
@@ -416,6 +532,25 @@ __global__ void output_add_bias_kernel(__half *output, const __half *bias,
   CUDA_1D_KERNEL_LOOP(index, n) {
     output[index] =
         __hadd(bias[(index % step_batch) / step_channel], output[index]);
+  }
+}
+
+__global__ void output_add_bias_kernel_int8(const int32_t *int32_iw,
+                                            float scale_iw, const float *bias,
+                                            int8_t *output, float scale_o,
+                                            size_t n, int hw_out) {
+  CUDA_1D_KERNEL_LOOP(index, n) {
+    int bias_index = index / (hw_out);
+    output[index] = T2int8<float>(
+        (int32_iw[index] * scale_iw + bias[bias_index]) / scale_o);
+  }
+}
+
+__global__ void output_wo_bias_kernel_int8(const int32_t *int32_iw,
+                                           float scale_iw, int8_t *output,
+                                           float scale_o, size_t n) {
+  CUDA_1D_KERNEL_LOOP(index, n) {
+    output[index] = T2int8<float>((int32_iw[index] * scale_iw) / scale_o);
   }
 }
 
@@ -462,6 +597,31 @@ void trt_modulated_deformable_im2col_h2(
       kernel_h, kenerl_w, pad_h, pad_w, stride_h, stride_w, dilation_h,
       dilation_w, channel_per_deformable_group, batch_size, channels,
       deformable_group, height_col, width_col, data_col_);
+
+  cudaCheckError();
+}
+
+void trt_modulated_deformable_im2col_int8(
+    const int8_4 *data_im_, const float &scale_i, const int8_t *data_offset_,
+    const float &scale_off, const int8_t *data_mask_, const float &scale_mask,
+    const int batch_size, const int channels, const int height_im,
+    const int width_im, const int height_col, const int width_col,
+    const int kernel_h, const int kenerl_w, const int pad_h, const int pad_w,
+    const int stride_h, const int stride_w, const int dilation_h,
+    const int dilation_w, const int deformable_group, int8_4 *data_col_,
+    cudaStream_t stream) {
+  // num_axes should be smaller than block size
+  const int channel_per_deformable_group =
+      (channels + 3) / 4 / deformable_group;
+  const int num_kernels =
+      (channels + 3) / 4 * batch_size * height_col * width_col;
+
+  modulated_deformable_im2col_gpu_kernel_int8<<<GET_BLOCKS(num_kernels),
+                                                THREADS_PER_BLOCK, 0, stream>>>(
+      num_kernels, data_im_, scale_i, data_offset_, scale_off, data_mask_,
+      scale_mask, height_im, width_im, kernel_h, kenerl_w, pad_h, pad_w,
+      stride_h, stride_w, dilation_h, dilation_w, channel_per_deformable_group,
+      batch_size, channels, deformable_group, height_col, width_col, data_col_);
 
   cudaCheckError();
 }
@@ -677,6 +837,85 @@ void ModulatedDeformConvForwardCUDAKernel(
   if (with_bias) {
     output_add_bias<__half>((__half *)output, (__half *)bias, batch,
                             channels_out, height_out, width_out, stream);
+  }
+}
+
+void ModulatedDeformConvForwardCUDAKernel_int8(
+    const int8_4 *input, const float &scale_i, const int8_4 *weight,
+    const float &scale_w, const float *bias, const int8_t *offset,
+    const float &scale_off, const int8_t *mask, const float &scale_mask,
+    int8_t *output, const float &scale_o, void *workspace, int batch,
+    int channels, int height, int width, int channels_out, int kernel_w,
+    int kernel_h, int stride_w, int stride_h, int pad_w, int pad_h,
+    int dilation_w, int dilation_h, int group, int deformable_group,
+    int im2col_step, cublasHandle_t cublas_handle, cudaStream_t stream) {
+
+  bool with_bias = (bias != nullptr);
+
+  im2col_step = std::min(int(batch), im2col_step);
+  ASSERT(batch % im2col_step == 0)
+
+  const int height_out =
+      (height + 2 * pad_h - (dilation_h * (kernel_h - 1) + 1)) / stride_h + 1;
+  const int width_out =
+      (width + 2 * pad_w - (dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
+
+  auto columns = (int8_4 *)workspace;
+  auto int32_temp =
+      (int32_t *)(columns + (channels + 3) / 4 * kernel_w * kernel_h *
+                                height_out * width_out);
+
+  const size_t input_step = (channels + 3) / 4 * height * width;
+  const size_t offset_step =
+      deformable_group * kernel_h * kernel_w * height_out * width_out * 2;
+  const size_t mask_step =
+      deformable_group * kernel_h * kernel_w * height_out * width_out;
+  const size_t out_step = channels_out * height_out * width_out;
+  const size_t out_group_step = out_step / group;
+  const size_t col_g_step =
+      (channels + 3) / 4 * kernel_w * kernel_h / group * height_out * width_out;
+  const size_t weight_g_step =
+      channels_out / group * ((channels + 3) / 4) / group * kernel_h * kernel_w;
+
+  const int m = channels_out / group;
+  const int n = height_out * width_out;
+  const int k = (channels + 3) / 4 / group * kernel_h * kernel_w * 4;
+  int32_t alpha = 1, beta = 0;
+  const float scale_iw = scale_i * scale_w;
+  const int mn = m * n;
+
+  for (int b = 0; b < batch; b++) {
+    const int8_4 *input_start = input + b * input_step;
+    const int8_t *offset_start = offset + b * offset_step;
+    const int8_t *mask_start = mask + b * mask_step;
+    trt_modulated_deformable_im2col_int8(
+        input_start, scale_i, offset_start, scale_off, mask_start, scale_mask,
+        1, channels, height, width, height_out, width_out, kernel_h, kernel_w,
+        pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w,
+        deformable_group, columns, stream);
+
+    for (int g = 0; g < group; g++) {
+      const int8_4 *weight_start = weight + g * weight_g_step;
+      int8_4 *col_start = columns + g * col_g_step;
+      int8_t *out_buffer_start = output + b * out_step + g * out_group_step;
+
+      cublasGemmWrap_int8(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
+                          &alpha, (int8_t *)col_start, n,
+                          (int8_t *)weight_start, k, &beta, int32_temp, n);
+
+      if (with_bias) {
+        const float *bias_start = bias + g * m;
+        output_add_bias_kernel_int8<<<GET_BLOCKS(mn), THREADS_PER_BLOCK, 0,
+                                      stream>>>(
+            int32_temp, scale_iw, bias_start, out_buffer_start, scale_o, mn, n);
+      } else {
+        output_wo_bias_kernel_int8<<<GET_BLOCKS(mn), THREADS_PER_BLOCK, 0,
+                                     stream>>>(int32_temp, scale_iw,
+                                               out_buffer_start, scale_o, mn);
+      }
+
+      cudaCheckError();
+    }
   }
 }
 

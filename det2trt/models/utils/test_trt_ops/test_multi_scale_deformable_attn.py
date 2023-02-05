@@ -60,7 +60,7 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
 
     def createInputs(self):
         f_keys = ["value", "sampling_locations", "attention_weights"]
-        if self.p16:
+        if self.fp16:
             inputs_pth = self.getInputs()
             self.inputs_pth_fp16 = {
                 key: (val.half() if key in f_keys else val)
@@ -162,7 +162,7 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
 
     def createInputs(self):
         f_keys = ["value", "sampling_locations", "attention_weights"]
-        if self.p16:
+        if self.fp16:
             inputs_pth = self.getInputs()
             self.inputs_pth_fp16 = {
                 key: (val.half() if key in f_keys else val)
