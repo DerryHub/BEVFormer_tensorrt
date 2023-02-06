@@ -283,7 +283,7 @@ void ModulatedDeformableConv2dPlugin::configurePlugin(
            this->getPluginType(), channels_out, channels_in, mGroup);
     exit(1);
   }
-  if (use_h2) {
+  if (inputs[0].desc.format == nvinfer1::TensorFormat::kCHW2) {
     int channels = inputs[0].desc.dims.d[1];
     if (mGroup > 1 && (channels / mGroup) % 2 == 1) {
       printf("%s (channels = %d, group = %d): channels / group should be an "
@@ -294,6 +294,20 @@ void ModulatedDeformableConv2dPlugin::configurePlugin(
     if (mDeformableGroup > 1 && (channels / mDeformableGroup) % 2 == 1) {
       printf("%s (channels = %d, deformable_group = %d): channels / "
              "deformable_group should be an even number.\n",
+             MDC_PLUGIN_NAME2, channels, mDeformableGroup);
+      exit(1);
+    }
+  } else if (inputs[0].desc.format == nvinfer1::TensorFormat::kCHW4) {
+    int channels = inputs[0].desc.dims.d[1];
+    if (mGroup > 1 && (channels / mGroup) % 4 == 1) {
+      printf("%s (channels = %d, deformable_group = %d): (channels / "
+             "mDeformableGroup) mod 4 should be zero.\n",
+             MDC_PLUGIN_NAME2, channels, mGroup);
+      exit(1);
+    }
+    if (mDeformableGroup > 1 && (channels / mDeformableGroup) % 4 == 1) {
+      printf("%s (channels = %d, deformable_group = %d): (channels / "
+             "mDeformableGroup) mod 4 should be zero.\n",
              MDC_PLUGIN_NAME2, channels, mDeformableGroup);
       exit(1);
     }
