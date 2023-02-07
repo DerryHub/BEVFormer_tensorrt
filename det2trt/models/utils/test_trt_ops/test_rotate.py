@@ -21,7 +21,7 @@ class RotateTestCase(BaseTestCase, unittest.TestCase):
         cls.input_data = dict(
             img=torch.ones(*img_shape, device="cuda"),
             angle=torch.randn(*angle_shape, device="cuda") * 360,
-            center=torch.tensor([500., 500.], device="cuda"),
+            center=torch.tensor([500.0, 500.0], device="cuda"),
         )
 
     @classmethod
@@ -120,7 +120,7 @@ class RotateTestCase2(BaseTestCase, unittest.TestCase):
         cls.input_data = dict(
             img=torch.ones(*img_shape, device="cuda"),
             angle=torch.randn(*angle_shape, device="cuda") * 360,
-            center=torch.tensor([500., 500.], device="cuda"),
+            center=torch.tensor([500.0, 500.0], device="cuda"),
         )
 
     @classmethod
