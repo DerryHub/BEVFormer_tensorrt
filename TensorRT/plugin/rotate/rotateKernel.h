@@ -7,6 +7,7 @@
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include "cuda_int8.h"
 
 enum class RotateInterpolation { Bilinear, Nearest };
 
@@ -17,5 +18,8 @@ void rotate(T *output, T *input, T *angle, T *center, int *input_dims,
 void rotate_h2(__half2 *output, __half2 *input, __half *angle, __half *center,
                int *input_dims, RotateInterpolation interp,
                cudaStream_t stream);
+
+void rotate_int8(int8_4 *output, float scale_o, const int8_4 *input, float scale_i, const float *angle, const float *center,
+                 int *input_dims, RotateInterpolation interp, cudaStream_t stream);
 
 #endif // TENSORRT_OPS_ROTATEKERNEL_H
