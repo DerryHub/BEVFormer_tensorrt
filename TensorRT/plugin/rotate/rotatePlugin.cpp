@@ -78,6 +78,7 @@ int32_t RotatePlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
                               void *workspace, cudaStream_t stream) noexcept {
   Dims input_dims = inputDesc[0].dims;
   auto data_type = inputDesc[0].type;
+  float scale_i = inputDesc[0].scale, scale_o = outputDesc[0].scale;
 
   switch (data_type) {
   case DataType::kFLOAT:
@@ -94,6 +95,11 @@ int32_t RotatePlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
                      (__half *)inputs[1], (__half *)inputs[2],
                      &(input_dims.d[0]), mMode, stream);
     }
+    break;
+  case DataType::kINT8:
+    rotate_int8((int8_4 *)outputs[0], scale_o, (int8_4 *)inputs[0], scale_i,
+                (float *)inputs[1], (float *)inputs[2], &(input_dims.d[0]),
+                mMode, stream);
     break;
   default:
     return 1;
@@ -117,14 +123,21 @@ bool RotatePlugin::supportsFormatCombination(
       return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
               inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
              (inOut[pos].type == nvinfer1::DataType::kHALF &&
-              inOut[pos].format == nvinfer1::TensorFormat::kCHW2);
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW2) ||
+             (inOut[pos].type == nvinfer1::DataType::kINT8 &&
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
     }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
-            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
+            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
+           (inOut[pos].type == nvinfer1::DataType::kINT8 &&
+            inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
   } else if (pos == nbInputs) {
     return inOut[pos].type == inOut[0].type &&
            inOut[pos].format == inOut[0].format;
+  } else if (inOut[0].type == nvinfer1::DataType::kINT8) {
+    return inOut[pos].type == nvinfer1::DataType::kFLOAT &&
+           inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
   } else {
     return inOut[pos].type == inOut[0].type &&
            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;

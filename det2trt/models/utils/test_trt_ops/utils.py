@@ -64,9 +64,14 @@ def createModel(
             self.output_shapes = output_shapes
             self.module = module
             self.kwargs = kwargs
+            self.rot = False
             if int8:
-                assert len(output_shapes["output"]) == 4
-                channel = output_shapes["output"][1]
+                assert len(output_shapes["output"]) in [3, 4]
+                if len(output_shapes["output"]) == 3:
+                    channel = output_shapes["output"][0]
+                    self.rot = True
+                else:
+                    channel = output_shapes["output"][1]
                 self.conv = nn.Conv2d(channel, channel, 1, bias=False)
                 self.conv.weight = nn.Parameter(
                     torch.eye(channel).view(channel, channel, 1, 1)
@@ -75,6 +80,8 @@ def createModel(
         def forward(self, *inputs):
             output = self.module(*inputs, **self.kwargs)
             if int8:
+                if self.rot:
+                    output = output.unsqueeze(0)
                 return self.conv(output)
             return output
 
