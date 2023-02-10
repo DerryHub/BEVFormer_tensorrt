@@ -5,11 +5,11 @@ from .base_test_case import BaseTestCase
 
 torch.random.manual_seed(0)
 value_shape = [6, 30825, 8, 32]
-sampling_locations_shape = [6, 40000, 8, 4, 8, 2]
-attention_weights_shape = sampling_locations_shape[:-1]
+sampling_locations_shape = [6, 40000, 8, 4 * 8 * 2]
+attention_weights_shape = [6, 40000, 8, 4 * 8]
 spatial_shapes_shape = [4, 2]
 
-output_shape = attention_weights_shape[:2] + [value_shape[-1] * value_shape[-2]]
+output_shape = [6, 40000, 8, 32]
 
 
 class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
@@ -26,7 +26,8 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
                 [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
             ),
             value=torch.randn(value_shape, device="cuda"),
-            sampling_locations=torch.randn(sampling_locations_shape, device="cuda"),
+            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda")
+            - 1,
             attention_weights=torch.randn(attention_weights_shape, device="cuda"),
         )
 
@@ -74,6 +75,16 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
                 )
                 for key, val in self.inputs_pth_fp16.items()
             }
+        elif self.int8:
+            self.inputs_pth_int8 = self.getInputs()
+            self.inputs_np_int8 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_int8.items()
+            }
         else:
             self.inputs_pth_fp32 = self.getInputs()
             self.inputs_np_fp32 = {
@@ -107,11 +118,25 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32(self):
         self.fp32_case()
 
     def test_fp16(self):
-        self.fp16_case(3e-2)
+        self.fp16_case(0.15)
+
+    def test_int8_fp16(self):
+        self.int8_case(0.25)
+
+    def test_int8(self):
+        self.int8_case(0.25)
 
 
 class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
@@ -128,7 +153,8 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
                 [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
             ),
             value=torch.randn(value_shape, device="cuda"),
-            sampling_locations=torch.randn(sampling_locations_shape, device="cuda"),
+            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda")
+            - 1,
             attention_weights=torch.randn(attention_weights_shape, device="cuda"),
         )
 
@@ -176,6 +202,16 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
                 )
                 for key, val in self.inputs_pth_fp16.items()
             }
+        elif self.int8:
+            self.inputs_pth_int8 = self.getInputs()
+            self.inputs_np_int8 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_int8.items()
+            }
         else:
             self.inputs_pth_fp32 = self.getInputs()
             self.inputs_np_fp32 = {
@@ -209,8 +245,22 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32(self):
         self.fp32_case()
 
     def test_fp16(self):
-        self.fp16_case(3e-2)
+        self.fp16_case(0.15)
+
+    def test_int8_fp16(self):
+        self.int8_case(0.25)
+
+    def test_int8(self):
+        self.int8_case(0.25)

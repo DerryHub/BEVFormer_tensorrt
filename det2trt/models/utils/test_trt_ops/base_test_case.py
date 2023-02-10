@@ -17,9 +17,13 @@ class BaseTestCase:
         delta=1e-5,
     ):
         assert "fp16" in func_name or "fp32" in func_name or "int8" in func_name
+        self.int8_fp16 = False
         self.fp16 = False
         self.int8 = False
-        if "fp16" in func_name:
+        if "int8" in func_name and "fp16" in func_name:
+            self.int8_fp16 = True
+            self.int8 = True
+        elif "fp16" in func_name:
             self.fp16 = True
         elif "int8" in func_name:
             self.int8 = True
@@ -112,6 +116,7 @@ class BaseTestCase:
                     self.inputs_pth_int8,
                     opset_version=opset_version,
                     int8=True,
+                    int8_fp16=self.int8_fp16,
                     calibrator=calibrator,
                 )
                 dic["engine_int8"] = engine

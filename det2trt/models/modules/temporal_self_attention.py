@@ -473,9 +473,12 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
 
         if torch.onnx.is_in_onnx_export():
             assert value.is_cuda
+        sampling_locations = sampling_locations.flatten(3)
+        attention_weights = attention_weights.flatten(3)
+        sampling_locations = 2 * sampling_locations - 1
         output = self.multi_scale_deformable_attn(
             value, spatial_shapes, sampling_locations, attention_weights
-        )
+        ).flatten(2)
 
         # output shape (bs*num_bev_queue, num_query, embed_dims)
         # (bs*num_bev_queue, num_query, embed_dims)-> (num_query, embed_dims, bs*num_bev_queue)

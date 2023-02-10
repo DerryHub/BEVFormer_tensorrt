@@ -47,10 +47,10 @@
 
 ### Multi-scale Deformable Attention
 
-|           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | Half Type | Test Device |
-| :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------: | :---------: |
-| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.4    |  nv_half  | RTX 2080Ti  |
-| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.9    | nv_half2  | RTX 2080Ti  |
+|           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type | Tensor Format | Test Device |
+| :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-----------: | :---------: |
+| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.3    |    x2.7    |  nv_half  |    kLinear    | RTX 2080Ti  |
+| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.7    |    x2.7    | nv_half2  |    kLinear    | RTX 2080Ti  |
 
 #### Inputs
 
@@ -64,7 +64,7 @@
 
 * sampling_locations: T[float/half/half2]
 
-  The location of sampling points, has shape `[N ,num_queries, num_heads, num_levels, num_points, 2]`, the last dimension 2 represent (x, y).
+  The location of sampling points, has shape `[N ,num_queries, num_heads, num_levels, num_points, 2]`, the last dimension 2 represent (x, y). Range: [-1, 1].
 
 * attention_weights: T[float/half/half2]
 
