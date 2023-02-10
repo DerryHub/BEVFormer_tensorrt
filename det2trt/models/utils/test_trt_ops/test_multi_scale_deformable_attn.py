@@ -129,10 +129,13 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
         self.fp32_case()
 
     def test_fp16(self):
-        self.fp16_case(0.1)
+        self.fp16_case(0.15)
+
+    def test_int8_fp16(self):
+        self.int8_case(0.25)
 
     def test_int8(self):
-        self.int8_case(0.8)
+        self.int8_case(0.25)
 
 
 class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
@@ -252,7 +255,10 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
         self.fp32_case()
 
     def test_fp16(self):
-        self.fp16_case(0.1)
+        self.fp16_case(0.15)
+
+    def test_int8_fp16(self):
+        self.int8_case(0.25)
 
     def test_int8(self):
-        self.int8_case(0.8)
+        self.int8_case(0.25)

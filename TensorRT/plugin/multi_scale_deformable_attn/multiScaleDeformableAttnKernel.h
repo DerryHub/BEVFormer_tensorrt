@@ -26,9 +26,10 @@ void ms_deformable_im2col_cuda_h2(
         const int channels, const int num_levels, const int num_query,
         const int num_point, __half2 *data_col, cudaStream_t stream);
 
+template <typename T>
 void ms_deformable_im2col_cuda_int8(
         const int8_4 *data_value, float scale_value, const int32_t *data_spatial_shapes,
-        const int8_2 *data_sampling_loc, float scale_loc, const int8_t *data_attn_weight, float scale_weight,
+        const T *data_sampling_loc, const int8_t *data_attn_weight, float scale_weight,
         const int batch_size, const int spatial_size, const int num_heads,
         const int channels, const int num_levels, const int num_query,
         const int num_point, int8_4 *data_col, float scale_out, cudaStream_t stream);

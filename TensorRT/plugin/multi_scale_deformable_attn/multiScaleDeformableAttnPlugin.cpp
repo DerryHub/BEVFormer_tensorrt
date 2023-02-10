@@ -72,7 +72,7 @@ int32_t MultiScaleDeformableAttnPlugin::enqueue(
     const nvinfer1::PluginTensorDesc *inputDesc,
     const nvinfer1::PluginTensorDesc *outputDesc, const void *const *inputs,
     void *const *outputs, void *workspace, cudaStream_t stream) noexcept {
-    float scale_value = inputDesc[0].scale, scale_loc = inputDesc[2].scale, scale_weight = inputDesc[3].scale, scale_out = outputDesc[0].scale;
+    float scale_value = inputDesc[0].scale, scale_weight = inputDesc[3].scale, scale_out = outputDesc[0].scale;
   Dims value_dims = inputDesc[0].dims;
   const int batch = value_dims.d[0];
   const int spatial_size = value_dims.d[1];
@@ -85,7 +85,9 @@ int32_t MultiScaleDeformableAttnPlugin::enqueue(
   const int num_point = inputDesc[3].dims.d[3] / num_levels;
 
   auto data_type = inputDesc[0].type;
+  auto data_type_loc = inputDesc[2].type;
   ASSERT(data_type == DataType::kFLOAT || data_type == DataType::kHALF || data_type == DataType::kINT8)
+  ASSERT(data_type_loc == DataType::kFLOAT || data_type_loc == DataType::kHALF)
 
   switch (data_type) {
   case DataType::kFLOAT:
@@ -108,10 +110,18 @@ int32_t MultiScaleDeformableAttnPlugin::enqueue(
     }
     break;
       case DataType::kINT8:
-          ms_deformable_im2col_cuda_int8(
-                  (int8_4 *)inputs[0], scale_value, (int32_t *)inputs[1], (int8_2 *)inputs[2], scale_loc,
-                  (int8_t *)inputs[3], scale_weight, batch, spatial_size, num_heads, channels,
-                  num_levels, num_query, num_point, (int8_4 *)outputs[0], scale_out, stream);
+          if (data_type_loc == DataType::kHALF){
+              ms_deformable_im2col_cuda_int8(
+                      (int8_4 *)inputs[0], scale_value, (int32_t *)inputs[1], (__half2 *)inputs[2],
+                      (int8_t *)inputs[3], scale_weight, batch, spatial_size, num_heads, channels,
+                      num_levels, num_query, num_point, (int8_4 *)outputs[0], scale_out, stream);
+          } else {
+              ms_deformable_im2col_cuda_int8(
+                      (int8_4 *)inputs[0], scale_value, (int32_t *)inputs[1], (float *)inputs[2],
+                      (int8_t *)inputs[3], scale_weight, batch, spatial_size, num_heads, channels,
+                      num_levels, num_query, num_point, (int8_4 *)outputs[0], scale_out, stream);
+          }
+
           break;
   default:
     return 1;
@@ -146,7 +156,11 @@ bool MultiScaleDeformableAttnPlugin::supportsFormatCombination(
     return inOut[pos].type == nvinfer1::DataType::kINT32 &&
            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
   case 2:
-    return inOut[pos].type == inOut[0].type &&
+      if (inOut[0].type == nvinfer1::DataType::kFLOAT || inOut[0].type == nvinfer1::DataType::kHALF) {
+          return inOut[pos].type == inOut[0].type &&
+                 inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
+      }
+    return (inOut[pos].type == nvinfer1::DataType::kHALF || inOut[pos].type == nvinfer1::DataType::kFLOAT) &&
            inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
   case 3:
     return inOut[pos].type == inOut[0].type &&

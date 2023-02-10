@@ -90,7 +90,7 @@ def createModel(
 
 
 def build_engine(
-    onnx_file, int8=False, fp16=False, max_workspace_size=1, calibrator=None
+    onnx_file, int8=False, fp16=False, int8_fp16=False, max_workspace_size=1, calibrator=None
 ):
     """Takes an ONNX file and creates a TensorRT engine to run inference with"""
     with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
@@ -113,6 +113,8 @@ def build_engine(
         if int8:
             config.set_flag(trt.BuilderFlag.INT8)
             config.int8_calibrator = calibrator
+            if int8_fp16:
+                config.set_flag(trt.BuilderFlag.FP16)
 
         if fp16:
             config.set_flag(trt.BuilderFlag.FP16)
@@ -122,7 +124,7 @@ def build_engine(
         return engine
 
 
-def pth2trt(module, inputs, opset_version=13, fp16=False, int8=False, calibrator=None):
+def pth2trt(module, inputs, opset_version=13, fp16=False, int8=False, int8_fp16=False, calibrator=None):
     fd, path = tempfile.mkstemp()
     args = tuple([inputs[key] for key in inputs.keys()])
     try:
@@ -136,7 +138,7 @@ def pth2trt(module, inputs, opset_version=13, fp16=False, int8=False, calibrator
             operator_export_type=OperatorExportTypes.ONNX_FALLTHROUGH,
         )
         with open(path, "rb") as f:
-            engine = build_engine(f, fp16=fp16, int8=int8, calibrator=calibrator)
+            engine = build_engine(f, fp16=fp16, int8=int8, int8_fp16=int8_fp16, calibrator=calibrator)
     finally:
         os.remove(path)
     return engine
