@@ -46,8 +46,21 @@ class _MultiScaleDeformableAttnFunction(Function):
         num_level = value_spatial_shapes.shape[0]
         bs, num_queries, num_heads, dim = sampling_locations.shape
         sampling_locations = (sampling_locations + 1) / 2
-        sampling_locations = sampling_locations.view(bs, num_queries, num_heads, num_level, torch.div(dim, num_level*2, rounding_mode='floor'), 2)
-        attention_weights = attention_weights.view(bs, num_queries, num_heads, num_level, torch.div(dim, num_level*2, rounding_mode='floor'))
+        sampling_locations = sampling_locations.view(
+            bs,
+            num_queries,
+            num_heads,
+            num_level,
+            torch.div(dim, num_level * 2, rounding_mode="floor"),
+            2,
+        )
+        attention_weights = attention_weights.view(
+            bs,
+            num_queries,
+            num_heads,
+            num_level,
+            torch.div(dim, num_level * 2, rounding_mode="floor"),
+        )
         im2col_step = value.shape[0]
         ctx.im2col_step = im2col_step
 

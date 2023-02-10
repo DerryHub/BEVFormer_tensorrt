@@ -26,7 +26,8 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
                 [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
             ),
             value=torch.randn(value_shape, device="cuda"),
-            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda") - 1,
+            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda")
+            - 1,
             attention_weights=torch.randn(attention_weights_shape, device="cuda"),
         )
 
@@ -152,7 +153,8 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
                 [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
             ),
             value=torch.randn(value_shape, device="cuda"),
-            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda") - 1,
+            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda")
+            - 1,
             attention_weights=torch.randn(attention_weights_shape, device="cuda"),
         )
 
