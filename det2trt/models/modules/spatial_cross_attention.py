@@ -795,9 +795,12 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
         #  sampling_locations.shape: bs, num_query, num_heads, num_levels, num_all_points, 2
         #  attention_weights.shape: bs, num_query, num_heads, num_levels, num_all_points
 
+        sampling_locations = sampling_locations.flatten(3)
+        attention_weights = attention_weights.flatten(3)
+        sampling_locations = 2 * sampling_locations - 1
         output = self.multi_scale_deformable_attn(
             value, spatial_shapes, sampling_locations, attention_weights
-        )
+        ).flatten(2)
 
         return output
 

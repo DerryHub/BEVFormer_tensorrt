@@ -13,12 +13,48 @@
 #include "helper.h"
 #include "multiScaleDeformableAttnKernel.h"
 #include <cstdio>
+#include <unistd.h>
+
+
+template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
+    a = a > 127 ? 127 : a;
+    a = a < -128 ? -128 : a;
+    return int8_t(a);
+}
+
+__forceinline__ __device__ int8_t half2int8(const __half &hval,
+                                            const float &scale) {
+    int ret = __half2int_rn(__hdiv(hval, __float2half(scale)));
+    return T2int8<int>(ret);
+}
+
+__forceinline__ __device__ void qmulf(const int32_4 &a, int8_4 &c,
+                                      const float &b) {
+    c.x = T2int8<float>(a.x * b);
+    c.y = T2int8<float>(a.y * b);
+    c.z = T2int8<float>(a.z * b);
+    c.w = T2int8<float>(a.w * b);
+}
+
+__forceinline__ __device__ void dp4a(const int32_t *a, const int32_t *b,
+                                     int32_t &c) {
+#if __CUDA_ARCH__ >= 610
+    asm("dp4a.s32.s32 %0, %1, %2, %3;" : "+r"(c) : "r"(*a), "r"(*b), "r"(c));
+#else
+    auto ap = (int8_4 *)a, bp = (int8_4 *)b;
+
+  c += ap->x * bp->x;
+  c += ap->y * bp->y;
+  c += ap->z * bp->z;
+  c += ap->w * bp->w;
+#endif
+}
 
 template <typename scalar_t>
 __device__ scalar_t ms_deform_attn_im2col_bilinear(
     const scalar_t *&bottom_data, const int &height, const int &width,
     const int &nheads, const int &channels, const scalar_t &h,
-    const scalar_t &w, const int &m, const int &c) {
+    const scalar_t &w) {
   const int h_low = floorf(h);
   const int w_low = floorf(w);
   const int h_high = h_low + 1;
@@ -28,32 +64,30 @@ __device__ scalar_t ms_deform_attn_im2col_bilinear(
   const scalar_t lw = w - w_low;
   const scalar_t hh = 1 - lh, hw = 1 - lw;
 
-  const int w_stride = nheads * channels;
-  const int h_stride = width * w_stride;
-  const int h_low_ptr_offset = h_low * h_stride;
-  const int h_high_ptr_offset = h_low_ptr_offset + h_stride;
-  const int w_low_ptr_offset = w_low * w_stride;
-  const int w_high_ptr_offset = w_low_ptr_offset + w_stride;
-  const int base_ptr = m * channels + c;
+  const int h_low_ptr_offset = h_low * width;
+  const int h_high_ptr_offset = h_low_ptr_offset + width;
+  const int w_low_ptr_offset = w_low;
+  const int w_high_ptr_offset = w_low_ptr_offset + 1;
+  const int step = channels * nheads;
 
   scalar_t v1 = 0;
   if (h_low >= 0 && w_low >= 0) {
-    const int ptr1 = h_low_ptr_offset + w_low_ptr_offset + base_ptr;
+    const int ptr1 = (h_low_ptr_offset + w_low_ptr_offset) * step;
     v1 = bottom_data[ptr1];
   }
   scalar_t v2 = 0;
   if (h_low >= 0 && w_high <= width - 1) {
-    const int ptr2 = h_low_ptr_offset + w_high_ptr_offset + base_ptr;
+    const int ptr2 = (h_low_ptr_offset + w_high_ptr_offset) * step;
     v2 = bottom_data[ptr2];
   }
   scalar_t v3 = 0;
   if (h_high <= height - 1 && w_low >= 0) {
-    const int ptr3 = h_high_ptr_offset + w_low_ptr_offset + base_ptr;
+    const int ptr3 = (h_high_ptr_offset + w_low_ptr_offset) * step;
     v3 = bottom_data[ptr3];
   }
   scalar_t v4 = 0;
   if (h_high <= height - 1 && w_high <= width - 1) {
-    const int ptr4 = h_high_ptr_offset + w_high_ptr_offset + base_ptr;
+    const int ptr4 = (h_high_ptr_offset + w_high_ptr_offset) * step;
     v4 = bottom_data[ptr4];
   }
 
@@ -66,8 +100,7 @@ __device__ scalar_t ms_deform_attn_im2col_bilinear(
 template <>
 __device__ __half ms_deform_attn_im2col_bilinear(
     const __half *&bottom_data, const int &height, const int &width,
-    const int &nheads, const int &channels, const __half &h, const __half &w,
-    const int &m, const int &c) {
+    const int &nheads, const int &channels, const __half &h, const __half &w) {
   const __half h_low = hfloor(h);
   const __half w_low = hfloor(w);
   const __half h_high = __hadd(h_low, __float2half(1.f));
@@ -78,35 +111,33 @@ __device__ __half ms_deform_attn_im2col_bilinear(
   const __half hh = __hsub(__float2half(1.f), lh),
                hw = __hsub(__float2half(1.f), lw);
 
-  const int w_stride = nheads * channels;
-  const int h_stride = width * w_stride;
-  const int h_low_ptr_offset = static_cast<int>(h_low) * h_stride;
-  const int h_high_ptr_offset = h_low_ptr_offset + h_stride;
-  const int w_low_ptr_offset = static_cast<int>(w_low) * w_stride;
-  const int w_high_ptr_offset = w_low_ptr_offset + w_stride;
-  const int base_ptr = m * channels + c;
+    const int h_low_ptr_offset = __half2int_rn(h_low) * width;
+    const int h_high_ptr_offset = h_low_ptr_offset + width;
+    const int w_low_ptr_offset = __half2int_rn(w_low);
+    const int w_high_ptr_offset = w_low_ptr_offset + 1;
+    const int step = channels * nheads;
 
   __half v1 = 0;
   if (__hge(h_low, __float2half(0.f)) && __hge(w_low, __float2half(0.f))) {
-    const int ptr1 = h_low_ptr_offset + w_low_ptr_offset + base_ptr;
+    const int ptr1 = (h_low_ptr_offset + w_low_ptr_offset) * step;
     v1 = bottom_data[ptr1];
   }
   __half v2 = 0;
   if (__hge(h_low, __float2half(0.f)) &&
       __hle(w_high, __float2half(static_cast<float>(width - 1)))) {
-    const int ptr2 = h_low_ptr_offset + w_high_ptr_offset + base_ptr;
+    const int ptr2 = (h_low_ptr_offset + w_high_ptr_offset) * step;
     v2 = bottom_data[ptr2];
   }
   __half v3 = 0;
   if (__hle(h_high, __float2half(static_cast<float>(height - 1))) &&
       __hge(w_low, __float2half(0.f))) {
-    const int ptr3 = h_high_ptr_offset + w_low_ptr_offset + base_ptr;
+    const int ptr3 = (h_high_ptr_offset + w_low_ptr_offset) * step;
     v3 = bottom_data[ptr3];
   }
   __half v4 = 0;
   if (__hle(h_high, __float2half(static_cast<float>(height - 1))) &&
       __hle(w_high, __float2half(static_cast<float>(width - 1)))) {
-    const int ptr4 = h_high_ptr_offset + w_high_ptr_offset + base_ptr;
+    const int ptr4 = (h_high_ptr_offset + w_high_ptr_offset) * step;
     v4 = bottom_data[ptr4];
   }
   const __half w1 = __hmul(hh, hw), w2 = __hmul(hh, lw), w3 = __hmul(lh, hw),
@@ -116,62 +147,134 @@ __device__ __half ms_deform_attn_im2col_bilinear(
 }
 
 __device__ __half2 ms_deform_attn_im2col_bilinear_h2(
-    const __half *&bottom_data, const int &height, const int &width,
-    const int &nheads, const int &channels, const __half &h, const __half &w,
-    const int &m, const int &c, const bool &last_one) {
-  const __half h_low = hfloor(h);
-  const __half w_low = hfloor(w);
-  const __half h_high = __hadd(h_low, __float2half(1.f));
-  const __half w_high = __hadd(w_low, __float2half(1.f));
+        const __half2 *&bottom_data, const int &height, const int &width,
+        const int &nheads, const int &channels, const __half2 &wh) {
+    const __half2 wh_low = h2floor(wh);
+    const __half2 wh_high = __hadd2(wh_low, __float2half2_rn(1.f));
 
-  const __half2 lh = __half2half2(__hsub(h, h_low));
-  const __half2 lw = __half2half2(__hsub(w, w_low));
-  const __half2 hh = __hsub2(__float2half2_rn(1.f), lh),
-                hw = __hsub2(__float2half2_rn(1.f), lw);
+    const __half2 lwh = __hsub2(wh, wh_low);
+    const __half2 hwh = __hsub2(__float2half2_rn(1.f), lwh);
 
-  const int w_stride = nheads * channels;
-  const int h_stride = width * w_stride;
-  const int h_low_ptr_offset = static_cast<int>(h_low) * h_stride;
-  const int h_high_ptr_offset = h_low_ptr_offset + h_stride;
-  const int w_low_ptr_offset = static_cast<int>(w_low) * w_stride;
-  const int w_high_ptr_offset = w_low_ptr_offset + w_stride;
-  const int base_ptr = m * channels + c * 2;
-  const int max_p = channels * nheads * height * width - 2;
+    const int h_low_ptr_offset = __high2float(wh_low) * width;
+    const int h_high_ptr_offset = h_low_ptr_offset + width;
+    const int w_low_ptr_offset = __low2float(wh_low);
+    const int w_high_ptr_offset = w_low_ptr_offset + 1;
+    const int step = channels * nheads;
 
-  int ptr;
-
-  __half2 v1 = __float2half2_rn(0.f);
-  if (__hge(h_low, __float2half(0.f)) && __hge(w_low, __float2half(0.f))) {
-    ptr = min(h_low_ptr_offset + w_low_ptr_offset + base_ptr, max_p);
-    v1 = __halves2half2(bottom_data[ptr], bottom_data[ptr + 1]);
-  }
-
-  __half2 v2 = __float2half2_rn(0.f);
-  if (__hge(h_low, __float2half(0.f)) &&
-      __hle(w_high, __float2half(static_cast<float>(width - 1)))) {
-    ptr = min(h_low_ptr_offset + w_high_ptr_offset + base_ptr, max_p);
-    v2 = __halves2half2(bottom_data[ptr], bottom_data[ptr + 1]);
-  }
-
-  __half2 v3 = __float2half2_rn(0.f);
-  if (__hle(h_high, __float2half(static_cast<float>(height - 1))) &&
-      __hge(w_low, __float2half(0.f))) {
-    ptr = min(h_high_ptr_offset + w_low_ptr_offset + base_ptr, max_p);
-    v3 = __halves2half2(bottom_data[ptr], bottom_data[ptr + 1]);
-  }
-
-  __half2 v4 = __float2half2_rn(0.f);
-  if (__hle(h_high, __float2half(static_cast<float>(height - 1))) &&
-      __hle(w_high, __float2half(static_cast<float>(width - 1)))) {
-    ptr = min(h_high_ptr_offset + w_high_ptr_offset + base_ptr, max_p);
-    v4 = __halves2half2(bottom_data[ptr], bottom_data[ptr + 1]);
-  }
-
-  const __half2 w1 = __hmul2(hh, hw), w2 = __hmul2(hh, lw),
-                w3 = __hmul2(lh, hw), w4 = __hmul2(lh, lw);
-  return __hadd2(__hadd2(__hmul2(w1, v1), __hmul2(w2, v2)),
-                 __hadd2(__hmul2(w3, v3), __hmul2(w4, v4)));
+    __half2 v1 = __float2half2_rn(0.f);
+    if (__hge(__high2half(wh_low), __float2half(0.f)) && __hge(__low2half(wh_low), __float2half(0.f))) {
+        const int ptr1 = (h_low_ptr_offset + w_low_ptr_offset) * step;
+        v1 = bottom_data[ptr1];
+    }
+    __half2 v2 = __float2half2_rn(0.f);
+    if (__hge(__high2half(wh_low), __float2half(0.f)) &&
+        __hle(__low2half(wh_high), __float2half(static_cast<float>(width - 1)))) {
+        const int ptr2 = (h_low_ptr_offset + w_high_ptr_offset) * step;
+        v2 = bottom_data[ptr2];
+    }
+    __half2 v3 = __float2half2_rn(0.f);
+    if (__hle(__high2half(wh_high), __float2half(static_cast<float>(height - 1))) &&
+        __hge(__low2half(wh_low), __float2half(0.f))) {
+        const int ptr3 = (h_high_ptr_offset + w_low_ptr_offset) * step;
+        v3 = bottom_data[ptr3];
+    }
+    __half2 v4 = __float2half2_rn(0.f);
+    if (__hle(__high2half(wh_high), __float2half(static_cast<float>(height - 1))) &&
+        __hle(__low2half(wh_high), __float2half(static_cast<float>(width - 1)))) {
+        const int ptr4 = (h_high_ptr_offset + w_high_ptr_offset) * step;
+        v4 = bottom_data[ptr4];
+    }
+    const __half2 w1 = __half2half2(__hmul(__high2half(hwh), __low2half(hwh))), w2 = __half2half2(__hmul(__high2half(hwh), __low2half(lwh))), w3 = __half2half2(__hmul(__high2half(lwh), __low2half(hwh))),
+            w4 = __half2half2(__hmul(__high2half(lwh), __low2half(lwh)));
+    return __hadd2(__hadd2(__hmul2(w1, v1), __hmul2(w2, v2)),
+                  __hadd2(__hmul2(w3, v3), __hmul2(w4, v4)));
 }
+
+
+__device__ int8_4 ms_deform_attn_im2col_bilinear_int8(
+        const int8_4 *&bottom_data, const int &height, const int &width,
+        const int &nheads, const int &channels, const __half2 &wh) {
+    const __half2 wh_low = h2floor(wh);
+    const __half2 wh_high = __hadd2(wh_low, __float2half2_rn(1.f));
+
+    const __half2 lwh = __hsub2(wh, wh_low);
+    const __half2 hwh = __hsub2(__float2half2_rn(1.f), lwh);
+
+    const int h_low_ptr_offset = __high2float(wh_low) * width;
+    const int h_high_ptr_offset = h_low_ptr_offset + width;
+    const int w_low_ptr_offset = __low2float(wh_low);
+    const int w_high_ptr_offset = w_low_ptr_offset + 1;
+    const int step = channels * nheads;
+
+    const float scale_area = 1 / 127.f;
+    int8_4 weight = {
+            half2int8(__hmul(__high2half(hwh), __low2half(hwh)), scale_area),
+            half2int8(__hmul(__high2half(hwh), __low2half(lwh)), scale_area),
+            half2int8(__hmul(__high2half(lwh), __low2half(hwh)), scale_area),
+            half2int8(__hmul(__high2half(lwh), __low2half(lwh)), scale_area),
+    };
+    int8_4 inps[4] = {0, 0, 0, 0}, output;
+    int32_t output_temp;
+
+    if (__hge(__high2half(wh_low), __float2half(0.f)) && __hge(__low2half(wh_low), __float2half(0.f))) {
+        const int ptr1 = (h_low_ptr_offset + w_low_ptr_offset) * step;
+        const int8_4 &inp = bottom_data[ptr1];
+        inps[0].x = inp.x;
+        inps[1].x = inp.y;
+        inps[2].x = inp.z;
+        inps[3].x = inp.w;
+    }
+
+    if (__hge(__high2half(wh_low), __float2half(0.f)) &&
+        __hle(__low2half(wh_high), __float2half(static_cast<float>(width - 1)))) {
+        const int ptr2 = (h_low_ptr_offset + w_high_ptr_offset) * step;
+        const int8_4 &inp = bottom_data[ptr2];
+        inps[0].y = inp.x;
+        inps[1].y = inp.y;
+        inps[2].y = inp.z;
+        inps[3].y = inp.w;
+    }
+
+    if (__hle(__high2half(wh_high), __float2half(static_cast<float>(height - 1))) &&
+        __hge(__low2half(wh_low), __float2half(0.f))) {
+        const int ptr3 = (h_high_ptr_offset + w_low_ptr_offset) * step;
+        const int8_4 &inp = bottom_data[ptr3];
+        inps[0].z = inp.x;
+        inps[1].z = inp.y;
+        inps[2].z = inp.z;
+        inps[3].z = inp.w;
+    }
+
+    if (__hle(__high2half(wh_high), __float2half(static_cast<float>(height - 1))) &&
+        __hle(__low2half(wh_high), __float2half(static_cast<float>(width - 1)))) {
+        const int ptr4 = (h_high_ptr_offset + w_high_ptr_offset) * step;
+        const int8_4 &inp = bottom_data[ptr4];
+        inps[0].w = inp.x;
+        inps[1].w = inp.y;
+        inps[2].w = inp.z;
+        inps[3].w = inp.w;
+    }
+
+    output_temp = 0;
+    dp4a((const int32_t*)inps, (const int32_t*)&weight, output_temp);
+    output.x = T2int8<float>(output_temp * scale_area);
+
+    output_temp = 0;
+    dp4a((const int32_t*)(inps + 1), (const int32_t*)&weight, output_temp);
+    output.y = T2int8<float>(output_temp * scale_area);
+
+    output_temp = 0;
+    dp4a((const int32_t*)(inps + 2), (const int32_t*)&weight, output_temp);
+    output.z = T2int8<float>(output_temp * scale_area);
+
+    output_temp = 0;
+    dp4a((const int32_t*)(inps + 3), (const int32_t*)&weight, output_temp);
+    output.w = T2int8<float>(output_temp * scale_area);
+
+    return output;
+}
+
+
 
 template <typename scalar_t>
 __global__ void ms_deformable_im2col_gpu_kernel(
@@ -181,178 +284,211 @@ __global__ void ms_deformable_im2col_gpu_kernel(
     const int channels, const int num_levels, const int num_query,
     const int num_point, scalar_t *data_col) {
   CUDA_1D_KERNEL_LOOP(index, n) {
-    int _temp = index;
-    const int c_col = _temp % channels;
-    _temp /= channels;
-    const int sampling_index = _temp;
-    const int m_col = _temp % num_heads;
-    _temp /= num_heads;
-    _temp /= num_query;
-    const int b_col = _temp;
+      const int temp = index;
+      const int channel_index = index % channels;
+      index /= channels;
+      const int head_index = index % num_heads;
+      index /= num_heads;
+      const int query_index = index % num_query;
+      const int batch_index = index / num_query;
 
-    scalar_t *data_col_ptr = data_col + index;
-    int data_weight_ptr = sampling_index * num_levels * num_point;
-    int data_loc_w_ptr = data_weight_ptr << 1;
-    const int qid_stride = num_heads * channels;
-    const int data_value_ptr_init_offset = b_col * spatial_size * qid_stride;
-    scalar_t col = 0;
+      const scalar_t *data_value_ptr = data_value + (batch_index * spatial_size * num_heads + head_index) * channels + channel_index;
+      int data_weight_ptr = ((batch_index * num_query + query_index) * num_heads + head_index) * num_levels * num_point;
+      int data_loc_w_ptr = data_weight_ptr << 1;
+      scalar_t *data_output_ptr = data_col + temp;
+      scalar_t output = 0;
 
-    const scalar_t *data_value_ptr = data_value + data_value_ptr_init_offset;
-    for (int l_col = 0; l_col < num_levels; ++l_col) {
-      const int spatial_h_ptr = l_col << 1;
-      const int spatial_h = data_spatial_shapes[spatial_h_ptr];
-      const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
+      for (int level_index = 0; level_index < num_levels; ++level_index) {
+          const int spatial_h_ptr = level_index << 1;
+          const int spatial_h = data_spatial_shapes[spatial_h_ptr];
+          const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
 
-      for (int p_col = 0; p_col < num_point; ++p_col) {
-        const scalar_t loc_w = data_sampling_loc[data_loc_w_ptr];
-        const scalar_t loc_h = data_sampling_loc[data_loc_w_ptr + 1];
-        const scalar_t weight = data_attn_weight[data_weight_ptr];
+          for (int point_index = 0; point_index < num_point; ++point_index) {
+              const scalar_t loc_w = (data_sampling_loc[data_loc_w_ptr] + 1) / 2;
+              const scalar_t loc_h = (data_sampling_loc[data_loc_w_ptr + 1] + 1) / 2;
+              const scalar_t weight = data_attn_weight[data_weight_ptr];
 
-        const scalar_t h_im = loc_h * spatial_h - 0.5;
-        const scalar_t w_im = loc_w * spatial_w - 0.5;
+              const scalar_t h_im = loc_h * spatial_h - 0.5;
+              const scalar_t w_im = loc_w * spatial_w - 0.5;
 
-        if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w) {
-          col += ms_deform_attn_im2col_bilinear(data_value_ptr, spatial_h,
-                                                spatial_w, num_heads, channels,
-                                                h_im, w_im, m_col, c_col) *
-                 weight;
-        }
+              if (h_im > -1 && w_im > -1 && h_im < spatial_h && w_im < spatial_w) {
+                  output += ms_deform_attn_im2col_bilinear(data_value_ptr, spatial_h,
+                                                        spatial_w, num_heads, channels,
+                                                        h_im, w_im) *
+                         weight;
+              }
 
-        data_weight_ptr += 1;
-        data_loc_w_ptr += 2;
+              data_weight_ptr += 1;
+              data_loc_w_ptr += 2;
+          }
+          data_value_ptr += spatial_h * spatial_w * channels * num_heads;
       }
-      data_value_ptr += qid_stride * spatial_h * spatial_w;
-    }
-    *data_col_ptr = col;
+      *data_output_ptr = output;
   }
 }
 
 template <>
 __global__ void ms_deformable_im2col_gpu_kernel(
-    const int n, const __half *data_value, const int32_t *data_spatial_shapes,
-    const __half *data_sampling_loc, const __half *data_attn_weight,
-    const int batch_size, const int spatial_size, const int num_heads,
-    const int channels, const int num_levels, const int num_query,
-    const int num_point, __half *data_col) {
-  CUDA_1D_KERNEL_LOOP(index, n) {
-    int _temp = index;
-    const int c_col = _temp % channels;
-    _temp /= channels;
-    const int sampling_index = _temp;
-    const int m_col = _temp % num_heads;
-    _temp /= num_heads;
-    _temp /= num_query;
-    const int b_col = _temp;
+        const int n, const __half *data_value, const int32_t *data_spatial_shapes,
+        const __half *data_sampling_loc, const __half *data_attn_weight,
+        const int batch_size, const int spatial_size, const int num_heads,
+        const int channels, const int num_levels, const int num_query,
+        const int num_point, __half *data_col) {
+    CUDA_1D_KERNEL_LOOP(index, n) {
+        const int temp = index;
+        const int channel_index = index % channels;
+        index /= channels;
+        const int head_index = index % num_heads;
+        index /= num_heads;
+        const int query_index = index % num_query;
+        const int batch_index = index / num_query;
 
-    __half *data_col_ptr = data_col + index;
-    int data_weight_ptr = sampling_index * num_levels * num_point;
-    int data_loc_w_ptr = data_weight_ptr << 1;
-    const int qid_stride = num_heads * channels;
-    const int data_value_ptr_init_offset = b_col * spatial_size * qid_stride;
-    __half col = __float2half(0.f);
+        const __half *data_value_ptr = data_value + (batch_index * spatial_size * num_heads + head_index) * channels + channel_index;
+        int data_weight_ptr = ((batch_index * num_query + query_index) * num_heads + head_index) * num_levels * num_point;
+        int data_loc_w_ptr = data_weight_ptr << 1;
+        __half *data_output_ptr = data_col + temp;
+        __half output = 0;
 
-    const __half *data_value_ptr = data_value + data_value_ptr_init_offset;
-    for (int l_col = 0; l_col < num_levels; ++l_col) {
-      const int spatial_h_ptr = l_col << 1;
-      const int spatial_h = data_spatial_shapes[spatial_h_ptr];
-      const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
+        for (int level_index = 0; level_index < num_levels; ++level_index) {
+            const int spatial_h_ptr = level_index << 1;
+            const int spatial_h = data_spatial_shapes[spatial_h_ptr];
+            const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
 
-      for (int p_col = 0; p_col < num_point; ++p_col) {
-        const __half loc_w = data_sampling_loc[data_loc_w_ptr];
-        const __half loc_h = data_sampling_loc[data_loc_w_ptr + 1];
-        const __half weight = data_attn_weight[data_weight_ptr];
+            for (int point_index = 0; point_index < num_point; ++point_index) {
+                const __half loc_w = data_sampling_loc[data_loc_w_ptr];
+                const __half loc_h = data_sampling_loc[data_loc_w_ptr + 1];
+                const __half weight = data_attn_weight[data_weight_ptr];
 
-        const __half h_im =
-            __hsub(__hmul(loc_h, __float2half(static_cast<float>(spatial_h))),
-                   __float2half(0.5f));
-        const __half w_im =
-            __hsub(__hmul(loc_w, __float2half(static_cast<float>(spatial_w))),
-                   __float2half(0.5f));
+                const __half h_im = __hfma(__hfma(loc_h, __float2half(0.5f), __float2half(0.5f)), __int2half_rn(spatial_h), __float2half(-0.5f));
+                const __half w_im = __hfma(__hfma(loc_w, __float2half(0.5f), __float2half(0.5f)), __int2half_rn(spatial_w), __float2half(-0.5f));
 
-        if (__hgt(h_im, __float2half(-1.f)) &&
-            __hgt(w_im, __float2half(-1.f)) &&
-            __hlt(h_im, __float2half(static_cast<float>(spatial_h))) &&
-            __hlt(w_im, __float2half(static_cast<float>(spatial_w)))) {
-          col = __hfma(ms_deform_attn_im2col_bilinear(
-                           data_value_ptr, spatial_h, spatial_w, num_heads,
-                           channels, h_im, w_im, m_col, c_col),
-                       weight, col);
+                if (__hgt(h_im, __float2half(-1.f)) &&
+                    __hgt(w_im, __float2half(-1.f)) &&
+                    __hlt(h_im, __int2half_rn(spatial_h)) &&
+                    __hlt(w_im, __int2half_rn(spatial_w))) {
+                    output += ms_deform_attn_im2col_bilinear(data_value_ptr, spatial_h,
+                                                             spatial_w, num_heads, channels,
+                                                             h_im, w_im) *
+                              weight;
+                }
+
+                data_weight_ptr += 1;
+                data_loc_w_ptr += 2;
+            }
+            data_value_ptr += spatial_h * spatial_w * channels * num_heads;
         }
-
-        data_weight_ptr += 1;
-        data_loc_w_ptr += 2;
-      }
-      data_value_ptr += qid_stride * spatial_h * spatial_w;
+        *data_output_ptr = output;
     }
-    *data_col_ptr = col;
-  }
 }
 
-template <>
-__global__ void ms_deformable_im2col_gpu_kernel(
-    const int n, const __half2 *data_value, const int32_t *data_spatial_shapes,
-    const __half2 *data_sampling_loc, const __half2 *data_attn_weight,
-    const int batch_size, const int spatial_size, const int num_heads,
-    const int channels, const int num_levels, const int num_query,
-    const int num_point, __half2 *data_col) {
-  CUDA_1D_KERNEL_LOOP(index, n) {
-    int _temp = index;
-    const int c_col = _temp % ((channels + 1) / 2);
-    const bool last_one = c_col * 2 == channels - 1;
-    _temp /= ((channels + 1) / 2);
-    const int sampling_index = _temp;
-    const int m_col = _temp % num_heads;
-    _temp /= num_heads;
-    _temp /= num_query;
-    const int b_col = _temp;
+__global__ void ms_deformable_im2col_gpu_kernel_h2(
+        const int n, const __half2 *data_value, const int32_t *data_spatial_shapes,
+        const __half2 *data_sampling_loc, const __half *data_attn_weight,
+        const int batch_size, const int spatial_size, const int num_heads,
+        const int channels, const int num_levels, const int num_query,
+        const int num_point, __half2 *data_col) {
+    CUDA_1D_KERNEL_LOOP(index, n) {
+        const int temp = index;
+        const int channel_index = index % channels;
+        index /= channels;
+        const int head_index = index % num_heads;
+        index /= num_heads;
+        const int query_index = index % num_query;
+        const int batch_index = index / num_query;
 
-    __half *data_col_ptr = (__half *)data_col +
-                           index / ((channels + 1) / 2) * channels + c_col * 2;
-    int data_weight_ptr = sampling_index * num_levels * num_point;
-    int data_loc_w_ptr = data_weight_ptr << 1;
-    const int qid_stride = num_heads * channels;
-    const int data_value_ptr_init_offset = b_col * spatial_size * qid_stride;
-    __half2 col = __float2half2_rn(0.f);
+        const __half2 *data_value_ptr = data_value + (batch_index * spatial_size * num_heads + head_index) * channels + channel_index;
+        int data_weight_ptr = ((batch_index * num_query + query_index) * num_heads + head_index) * num_levels * num_point;
+        __half2 *data_output_ptr = data_col + temp;
+        __half2 output = __float2half2_rn(0.f);
 
-    const __half *data_value_ptr =
-        (__half *)data_value + data_value_ptr_init_offset;
-    for (int l_col = 0; l_col < num_levels; ++l_col) {
-      const int spatial_h_ptr = l_col << 1;
-      const int spatial_h = data_spatial_shapes[spatial_h_ptr];
-      const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
+        for (int level_index = 0; level_index < num_levels; ++level_index) {
+            const int spatial_h_ptr = level_index << 1;
+            const int spatial_h = data_spatial_shapes[spatial_h_ptr];
+            const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
 
-      for (int p_col = 0; p_col < num_point; ++p_col) {
-        const __half loc_w = ((__half *)data_sampling_loc)[data_loc_w_ptr];
-        const __half loc_h = ((__half *)data_sampling_loc)[data_loc_w_ptr + 1];
-        const __half weight = ((__half *)data_attn_weight)[data_weight_ptr];
+            for (int point_index = 0; point_index < num_point; ++point_index) {
+                const __half2 loc_wh = data_sampling_loc[data_weight_ptr];
+                const __half2 weight = __half2half2(data_attn_weight[data_weight_ptr]);
 
-        const __half h_im =
-            __hsub(__hmul(loc_h, __float2half(static_cast<float>(spatial_h))),
-                   __float2half(0.5f));
-        const __half w_im =
-            __hsub(__hmul(loc_w, __float2half(static_cast<float>(spatial_w))),
-                   __float2half(0.5f));
+                const __half2 wh_im = __hfma2(__hfma2(loc_wh, __float2half2_rn(0.5f), __float2half2_rn(0.5f)), __floats2half2_rn(static_cast<float>(spatial_w), static_cast<float>(spatial_h)),
+                                              __float2half2_rn(-0.5f));
+                const __half2 condition = __hmul2(__hgt2(wh_im, __float2half2_rn(-1.f)), __hlt2(wh_im, __floats2half2_rn(static_cast<float>(spatial_w), static_cast<float>(spatial_h))));
 
-        if (__hgt(h_im, __float2half(-1.f)) &&
-            __hgt(w_im, __float2half(-1.f)) &&
-            __hlt(h_im, __float2half(static_cast<float>(spatial_h))) &&
-            __hlt(w_im, __float2half(static_cast<float>(spatial_w)))) {
-          col = __hfma2(ms_deform_attn_im2col_bilinear_h2(
-                            data_value_ptr, spatial_h, spatial_w, num_heads,
-                            channels, h_im, w_im, m_col, c_col, last_one),
-                        __half2half2(weight), col);
+                if (__low2float(condition) * __high2float(condition)) {
+                    output = __hfma2(ms_deform_attn_im2col_bilinear_h2(data_value_ptr, spatial_h,
+                                                             spatial_w, num_heads, channels,
+                                                             wh_im), weight, output);
+                }
+                data_weight_ptr += 1;
+            }
+            data_value_ptr += spatial_h * spatial_w * channels * num_heads;
         }
+        *data_output_ptr = output;
+    }
+}
 
-        data_weight_ptr += 1;
-        data_loc_w_ptr += 2;
-      }
-      data_value_ptr += qid_stride * spatial_h * spatial_w;
+__global__ void ms_deformable_im2col_gpu_kernel_int8(
+        const int n, const int8_4 *data_value, float scale_value, const int32_t *data_spatial_shapes,
+        const int8_2 *data_sampling_loc, float scale_loc, const int8_t *data_attn_weight, float scale_weight,
+        const int batch_size, const int spatial_size, const int num_heads,
+        const int channels, const int num_levels, const int num_query,
+        const int num_point, int8_4 *data_col, float scale_out) {
+    CUDA_1D_KERNEL_LOOP(index, n) {
+        const int temp = index;
+        const int channel_index = index % channels;
+        index /= channels;
+        const int head_index = index % num_heads;
+        index /= num_heads;
+        const int query_index = index % num_query;
+        const int batch_index = index / num_query;
+
+        const int8_4 *data_value_ptr = data_value + (batch_index * spatial_size * num_heads + head_index) * channels + channel_index;
+        int data_weight_ptr = ((batch_index * num_query + query_index) * num_heads + head_index) * num_levels * num_point;
+        int8_4 *data_output_ptr = data_col + temp;
+        int32_4 output = 0;
+        const float scale_o = scale_weight * scale_value / scale_out;
+
+
+        for (int level_index = 0; level_index < num_levels; ++level_index) {
+            const int spatial_h_ptr = level_index << 1;
+            const int spatial_h = data_spatial_shapes[spatial_h_ptr];
+            const int spatial_w = data_spatial_shapes[spatial_h_ptr + 1];
+
+            for (int point_index = 0; point_index < num_point / 4; point_index++){
+                int8_t values[16] = {0};
+                int8_t weights[16] = {0};
+#pragma unroll 4
+                for( int i=0; i<4; i++) {
+                    const int8_2 loc_wh_int8 = data_sampling_loc[data_weight_ptr];
+                    const __half2 loc_wh = __floats2half2_rn(loc_wh_int8.x * scale_loc, loc_wh_int8.y * scale_loc);
+                    const __half2 wh_im = __hfma2(__hfma2(loc_wh, __float2half2_rn(0.5f), __float2half2_rn(0.5f)), __floats2half2_rn(static_cast<float>(spatial_w), static_cast<float>(spatial_h)),
+                                              __float2half2_rn(-0.5f));
+                    const __half2 condition = __hmul2(__hgt2(wh_im, __float2half2_rn(-1.f)), __hlt2(wh_im, __floats2half2_rn(static_cast<float>(spatial_w), static_cast<float>(spatial_h))));
+                    if (__low2float(condition) * __high2float(condition)) {
+                        const int8_4 &val = ms_deform_attn_im2col_bilinear_int8(data_value_ptr, spatial_h,
+                                                                       spatial_w, num_heads, channels,
+                                                                       wh_im);
+                        values[i] = val.x;
+                        values[i+4] = val.y;
+                        values[i+8] = val.z;
+                        values[i+12] = val.w;
+                    }
+                    const int8_4 weight = data_attn_weight[data_weight_ptr++];
+                    weights[i] = weight.x;
+                    weights[i+4] = weight.y;
+                    weights[i+8] = weight.z;
+                    weights[i+12] = weight.w;
+                }
+
+                dp4a((const int32_t*)values, (const int32_t*)weights, output.x);
+                dp4a((const int32_t*)(values+4), (const int32_t*)(weights+4), output.y);
+                dp4a((const int32_t*)(values+8), (const int32_t*)(weights+8), output.z);
+                dp4a((const int32_t*)(values+12), (const int32_t*)(weights+12), output.w);
+            }
+            data_value_ptr += spatial_h * spatial_w * channels * num_heads;
+        }
+        qmulf(output, *data_output_ptr, scale_o);
     }
-    *data_col_ptr = __low2half(col);
-    if (!last_one) {
-      *(data_col_ptr + 1) = __high2half(col);
-    }
-  }
 }
 
 template <typename scalar_t>
@@ -362,15 +498,23 @@ void ms_deformable_im2col_cuda(
     const int batch_size, const int spatial_size, const int num_heads,
     const int channels, const int num_levels, const int num_query,
     const int num_point, scalar_t *data_col, cudaStream_t stream) {
-  const int num_kernels = batch_size * num_query * num_heads * channels;
-  const int num_actual_kernels = batch_size * num_query * num_heads * channels;
+  const int num_kernels = num_query * num_heads * channels;
+  const int value_step = num_heads * spatial_size * channels;
+  const int output_step = num_heads * num_query * channels;
+  const int weight_step = num_heads * num_query * num_levels * num_point;
+  const int loc_step = weight_step * 2;
 
-  ms_deformable_im2col_gpu_kernel<scalar_t>
-      <<<GET_BLOCKS(num_actual_kernels), THREADS_PER_BLOCK, 0, stream>>>(
-          num_kernels, data_value, data_spatial_shapes, data_sampling_loc,
-          data_attn_weight, batch_size, spatial_size, num_heads, channels,
-          num_levels, num_query, num_point, data_col);
-
+  for (int batch_index = 0; batch_index < batch_size; batch_index++) {
+          ms_deformable_im2col_gpu_kernel<scalar_t>
+          <<<GET_BLOCKS(num_kernels), THREADS_PER_BLOCK, 0, stream>>>(
+                  num_kernels, data_value, data_spatial_shapes, data_sampling_loc,
+                  data_attn_weight, 1, spatial_size, num_heads, channels,
+                  num_levels, num_query, num_point, data_col);
+          data_value += value_step;
+          data_col += output_step;
+      data_sampling_loc += loc_step;
+      data_attn_weight += weight_step;
+  }
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
     printf("error in ms_deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
@@ -379,26 +523,91 @@ void ms_deformable_im2col_cuda(
 
 template <>
 void ms_deformable_im2col_cuda(
+        const __half *data_value, const int32_t *data_spatial_shapes,
+        const __half *data_sampling_loc, const __half *data_attn_weight,
+        const int batch_size, const int spatial_size, const int num_heads,
+        const int channels, const int num_levels, const int num_query,
+        const int num_point, __half *data_col, cudaStream_t stream) {
+    const int num_kernels = num_query * num_heads * channels;
+    const int value_step = num_heads * spatial_size * channels;
+    const int output_step = num_heads * num_query * channels;
+    const int weight_step = num_heads * num_query * num_levels * num_point;
+    const int loc_step = weight_step * 2;
+
+    for (int batch_index = 0; batch_index < batch_size; batch_index++) {
+        ms_deformable_im2col_gpu_kernel<__half>
+        <<<GET_BLOCKS(num_kernels), THREADS_PER_BLOCK, 0, stream>>>(
+                num_kernels, data_value, data_spatial_shapes, data_sampling_loc,
+                data_attn_weight, 1, spatial_size, num_heads, channels,
+                num_levels, num_query, num_point, data_col);
+        data_value += value_step;
+        data_col += output_step;
+        data_sampling_loc += loc_step;
+        data_attn_weight += weight_step;
+    }
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("error in ms_deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
+    }
+}
+
+
+void ms_deformable_im2col_cuda_h2(
     const __half2 *data_value, const int32_t *data_spatial_shapes,
-    const __half2 *data_sampling_loc, const __half2 *data_attn_weight,
+    const __half2 *data_sampling_loc, const __half *data_attn_weight,
     const int batch_size, const int spatial_size, const int num_heads,
-    const int channels, const int num_levels, const int num_query,
+    int channels, const int num_levels, const int num_query,
     const int num_point, __half2 *data_col, cudaStream_t stream) {
-  const int num_kernels =
-      batch_size * num_query * num_heads * ((channels + 1) / 2);
-  const int num_actual_kernels =
-      batch_size * num_query * num_heads * ((channels + 1) / 2);
+    channels /= 2;
+    const int num_kernels = num_query * num_heads * channels;
+    const int value_step = num_heads * spatial_size * channels;
+    const int output_step = num_heads * num_query * channels;
+    const int weight_step = num_heads * num_query * num_levels * num_point;
 
-  ms_deformable_im2col_gpu_kernel<__half2>
-      <<<GET_BLOCKS(num_actual_kernels), THREADS_PER_BLOCK, 0, stream>>>(
-          num_kernels, data_value, data_spatial_shapes, data_sampling_loc,
-          data_attn_weight, batch_size, spatial_size, num_heads, channels,
-          num_levels, num_query, num_point, data_col);
+    for (int batch_index = 0; batch_index < batch_size; batch_index++) {
+        ms_deformable_im2col_gpu_kernel_h2
+        <<<GET_BLOCKS(num_kernels), THREADS_PER_BLOCK, 0, stream>>>(
+                num_kernels, data_value, data_spatial_shapes, data_sampling_loc,
+                data_attn_weight, 1, spatial_size, num_heads, channels,
+                num_levels, num_query, num_point, data_col);
+        data_value += value_step;
+        data_col += output_step;
+        data_sampling_loc += weight_step;
+        data_attn_weight += weight_step;
+    }
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("error in ms_deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
+    }
+}
 
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    printf("error in ms_deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
-  }
+void ms_deformable_im2col_cuda_int8(
+        const int8_4 *data_value, float scale_value, const int32_t *data_spatial_shapes,
+        const int8_2 *data_sampling_loc, float scale_loc, const int8_t *data_attn_weight, float scale_weight,
+        const int batch_size, const int spatial_size, const int num_heads,
+        int channels, const int num_levels, const int num_query,
+        const int num_point, int8_4 *data_col, float scale_out, cudaStream_t stream) {
+    channels /= 4;
+    const int num_kernels = num_query * num_heads * channels;
+    const int value_step = num_heads * spatial_size * channels;
+    const int output_step = num_heads * num_query * channels;
+    const int weight_step = num_heads * num_query * num_levels * num_point;
+
+    for (int batch_index = 0; batch_index < batch_size; batch_index++) {
+        ms_deformable_im2col_gpu_kernel_int8
+        <<<GET_BLOCKS(num_kernels), THREADS_PER_BLOCK, 0, stream>>>(
+                num_kernels, data_value, scale_value, data_spatial_shapes, data_sampling_loc, scale_loc,
+                data_attn_weight, scale_weight, 1, spatial_size, num_heads, channels,
+                num_levels, num_query, num_point, data_col, scale_out);
+        data_value += value_step;
+        data_col += output_step;
+        data_sampling_loc += weight_step;
+        data_attn_weight += weight_step;
+    }
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("error in ms_deformable_im2col_cuda: %s\n", cudaGetErrorString(err));
+    }
 }
 
 template void ms_deformable_im2col_cuda<float>(
@@ -414,10 +623,3 @@ template void ms_deformable_im2col_cuda<__half>(
     const int batch_size, const int spatial_size, const int num_heads,
     const int channels, const int num_levels, const int num_query,
     const int num_point, __half *data_col, cudaStream_t stream);
-
-template void ms_deformable_im2col_cuda<__half2>(
-    const __half2 *data_value, const int32_t *data_spatial_shapes,
-    const __half2 *data_sampling_loc, const __half2 *data_attn_weight,
-    const int batch_size, const int spatial_size, const int num_heads,
-    const int channels, const int num_levels, const int num_query,
-    const int num_point, __half2 *data_col, cudaStream_t stream);

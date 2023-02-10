@@ -30,7 +30,7 @@ class Calibrator(trt.IInt8MinMaxCalibrator):
     def set_inputs(self, inputs):
         for name in self.inputs.keys():
             np_input = inputs[name]
-            self.inputs[name].host = np_input.reshape(-1).astype(np.float32)
+            self.inputs[name].host = np_input.reshape(-1)
             cuda.memcpy_htod(
                 self.inputs[name].device, self.inputs[name].host,
             )
@@ -72,9 +72,9 @@ def createModel(
                     self.rot = True
                 else:
                     channel = output_shapes["output"][1]
-                self.conv = nn.Conv2d(channel, channel, 1, bias=False)
+                self.conv = nn.Conv2d(channel, channel, 1, groups=channel, bias=False)
                 self.conv.weight = nn.Parameter(
-                    torch.eye(channel).view(channel, channel, 1, 1)
+                    torch.ones_like(self.conv.weight)
                 )
 
         def forward(self, *inputs):
