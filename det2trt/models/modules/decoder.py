@@ -463,7 +463,11 @@ class CustomMSDeformableAttentionTRTP(CustomMSDeformableAttentionTRT):
         sampling_offsets = sampling_offsets.flatten(3)
         attention_weights = attention_weights.flatten(3)
         output = self.multi_scale_deformable_attn(
-            value, spatial_shapes, reference_points, sampling_offsets, attention_weights,
+            value,
+            spatial_shapes,
+            reference_points,
+            sampling_offsets,
+            attention_weights,
         ).flatten(2)
 
         output = self.output_proj(output)

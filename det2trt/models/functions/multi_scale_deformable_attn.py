@@ -9,7 +9,14 @@ ext_module = ext_loader.load_ext(
 
 class _MultiScaleDeformableAttnFunction(Function):
     @staticmethod
-    def symbolic(g, value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights):
+    def symbolic(
+        g,
+        value,
+        value_spatial_shapes,
+        reference_points,
+        sampling_offsets,
+        attention_weights,
+    ):
         return g.op(
             "MultiScaleDeformableAttnTRT",
             value,
@@ -21,7 +28,12 @@ class _MultiScaleDeformableAttnFunction(Function):
 
     @staticmethod
     def forward(
-        ctx, value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
+        ctx,
+        value,
+        value_spatial_shapes,
+        reference_points,
+        sampling_offsets,
+        attention_weights,
     ):
         """GPU version of multi-scale deformable attention.
 
@@ -46,7 +58,9 @@ class _MultiScaleDeformableAttnFunction(Function):
         channel = value.shape[3]
         num_level = value_spatial_shapes.shape[0]
         bs, num_queries, num_heads, dim = sampling_offsets.shape
-        points_per_group = torch.div(reference_points.shape[-1], 2, rounding_mode="floor")
+        points_per_group = torch.div(
+            reference_points.shape[-1], 2, rounding_mode="floor"
+        )
         sampling_offsets = sampling_offsets.view(
             bs,
             num_queries,
@@ -59,7 +73,9 @@ class _MultiScaleDeformableAttnFunction(Function):
         offset_normalizer = torch.stack(
             [value_spatial_shapes[..., 1], value_spatial_shapes[..., 0]], -1
         )
-        sampling_locations = reference_points.view(bs, num_queries, 1, 1, 1, -1, 2) + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 1, 2)
+        sampling_locations = reference_points.view(
+            bs, num_queries, 1, 1, 1, -1, 2
+        ) + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 1, 2)
         sampling_locations = sampling_locations.view(
             bs,
             num_queries,
@@ -110,7 +126,14 @@ class _MultiScaleDeformableAttnFunction(Function):
 
 class _MultiScaleDeformableAttnFunction2(_MultiScaleDeformableAttnFunction):
     @staticmethod
-    def symbolic(g, value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights):
+    def symbolic(
+        g,
+        value,
+        value_spatial_shapes,
+        reference_points,
+        sampling_offsets,
+        attention_weights,
+    ):
         return g.op(
             "MultiScaleDeformableAttnTRT2",
             value,
@@ -152,7 +175,11 @@ def multi_scale_deformable_attn(
     """
     assert value.is_cuda
     return _multi_scale_deformable_attn_gpu(
-        value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
+        value,
+        value_spatial_shapes,
+        reference_points,
+        sampling_offsets,
+        attention_weights,
     )
 
 
@@ -183,5 +210,9 @@ def multi_scale_deformable_attn2(
     """
     assert value.is_cuda
     return _multi_scale_deformable_attn_gpu2(
-        value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
+        value,
+        value_spatial_shapes,
+        reference_points,
+        sampling_offsets,
+        attention_weights,
     )
