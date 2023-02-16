@@ -5,7 +5,8 @@ from .base_test_case import BaseTestCase
 
 torch.random.manual_seed(0)
 value_shape = [6, 30825, 8, 32]
-sampling_locations_shape = [6, 40000, 8, 4 * 8 * 2]
+reference_points_shape = [6, 40000, 1, 4 * 2]
+sampling_offsets_shape = [6, 40000, 8, 4 * 8 * 2]
 attention_weights_shape = [6, 40000, 8, 4 * 8]
 spatial_shapes_shape = [4, 2]
 
@@ -26,8 +27,8 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
                 [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
             ),
             value=torch.randn(value_shape, device="cuda"),
-            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda")
-            - 1,
+            reference_points=torch.rand(reference_points_shape, device="cuda"),
+            sampling_offsets=torch.randn(sampling_offsets_shape, device="cuda"),
             attention_weights=torch.randn(attention_weights_shape, device="cuda"),
         )
 
@@ -45,7 +46,8 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
             input_shapes={
                 "value": value_shape,
                 "value_spatial_shapes": spatial_shapes_shape,
-                "sampling_locations": sampling_locations_shape,
+                "reference_points": reference_points_shape,
+                "sampling_offsets": sampling_offsets_shape,
                 "attention_weights": attention_weights_shape,
             },
             output_shapes={"output": output_shape},
@@ -60,7 +62,7 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
         torch.cuda.empty_cache()
 
     def createInputs(self):
-        f_keys = ["value", "sampling_locations", "attention_weights"]
+        f_keys = ["value", "reference_points", "sampling_offsets", "attention_weights"]
         if self.fp16:
             inputs_pth = self.getInputs()
             self.inputs_pth_fp16 = {
@@ -127,7 +129,7 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
             self.assertLessEqual(cost, delta)
 
     def test_fp32(self):
-        self.fp32_case()
+        self.fp32_case(2e-5)
 
     def test_fp16(self):
         self.fp16_case(0.15)
@@ -153,8 +155,8 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
                 [[116, 200], [58, 100], [29, 50], [15, 25]], device="cuda"
             ),
             value=torch.randn(value_shape, device="cuda"),
-            sampling_locations=2 * torch.rand(sampling_locations_shape, device="cuda")
-            - 1,
+            reference_points=torch.rand(reference_points_shape, device="cuda"),
+            sampling_offsets=torch.randn(sampling_offsets_shape, device="cuda"),
             attention_weights=torch.randn(attention_weights_shape, device="cuda"),
         )
 
@@ -172,7 +174,8 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
             input_shapes={
                 "value": value_shape,
                 "value_spatial_shapes": spatial_shapes_shape,
-                "sampling_locations": sampling_locations_shape,
+                "reference_points": reference_points_shape,
+                "sampling_offsets": sampling_offsets_shape,
                 "attention_weights": attention_weights_shape,
             },
             output_shapes={"output": output_shape},
@@ -187,7 +190,7 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
         torch.cuda.empty_cache()
 
     def createInputs(self):
-        f_keys = ["value", "sampling_locations", "attention_weights"]
+        f_keys = ["value", "reference_points", "sampling_offsets", "attention_weights"]
         if self.fp16:
             inputs_pth = self.getInputs()
             self.inputs_pth_fp16 = {
@@ -254,7 +257,7 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
             self.assertLessEqual(cost, delta)
 
     def test_fp32(self):
-        self.fp32_case()
+        self.fp32_case(2e-5)
 
     def test_fp16(self):
         self.fp16_case(0.15)

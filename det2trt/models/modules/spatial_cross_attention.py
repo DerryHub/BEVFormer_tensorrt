@@ -764,42 +764,11 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
             6, -1, self.num_heads, self.num_levels, self.num_points
         )
 
-        if reference_points.shape[-1] == 2:
-            """
-            For each BEV query, it owns `num_Z_anchors` in 3D space that having different heights.
-            After proejcting, each BEV query has `num_Z_anchors` reference points in each 2D image.
-            For each referent point, we sample `num_points` sampling points.
-            For `num_Z_anchors` reference points,  it has overall `num_points * num_Z_anchors` sampling points.
-            """
-            offset_normalizer = torch.stack(
-                [spatial_shapes[..., 1], spatial_shapes[..., 0]], -1
-            )
-
-            reference_points = reference_points.view(6, -1, 1, 1, 1, 4, 2)
-            sampling_offsets = sampling_offsets / offset_normalizer.view(
-                1, 1, 1, -1, 1, 2
-            )
-            sampling_offsets = sampling_offsets.view(
-                6, -1, self.num_heads, self.num_levels, self.num_points // 4, 4, 2
-            )
-            sampling_locations = reference_points + sampling_offsets
-            sampling_locations = sampling_locations.view(
-                6, -1, self.num_heads, self.num_levels, self.num_points, 2
-            )
-        else:
-            raise ValueError(
-                f"Last dim of reference_points must be"
-                f" 2, but get {reference_points.shape[-1]} instead."
-            )
-
-        #  sampling_locations.shape: bs, num_query, num_heads, num_levels, num_all_points, 2
-        #  attention_weights.shape: bs, num_query, num_heads, num_levels, num_all_points
-
-        sampling_locations = sampling_locations.flatten(3)
+        sampling_offsets = sampling_offsets.flatten(3)
         attention_weights = attention_weights.flatten(3)
-        sampling_locations = 2 * sampling_locations - 1
+        reference_points = reference_points.reshape(6, -1, 1, 8)
         output = self.multi_scale_deformable_attn(
-            value, spatial_shapes, sampling_locations, attention_weights
+            value, spatial_shapes, reference_points, sampling_offsets, attention_weights
         ).flatten(2)
 
         return output

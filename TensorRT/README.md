@@ -13,11 +13,11 @@
 
 #### Inputs
 
-* input: T[float/half/half2]
+* input: T[float/half/half2/int8]
 
   Tensor shape: `[N, C, H_in, W_in]` (4D case) or `[N, C, D_in, H_in, W_in]` (5D case)
 
-* grid: T[float/half/half2]
+* grid: T[float/half/half2/int8]
 
   Tensor shape: `[N, 2, H_out, W_out]` (4D case) or `[N, 3, D_out, H_out, W_out]` (5D case)
 
@@ -41,7 +41,7 @@
 
 #### Outputs
 
-* output: T[float/half/half2]
+* output: T[float/half/half2/int8]
 
   Tensor shape: `[N, C, H_out, W_out]` (4D case) or `[N, C, D_out, H_out, W_out]` (5D case)
 
@@ -50,11 +50,11 @@
 |           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type | Tensor Format | Test Device |
 | :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-----------: | :---------: |
 | MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.3    |    x2.7    |  nv_half  |    kLinear    | RTX 2080Ti  |
-| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.7    |    x2.7    | nv_half2  |    kLinear    | RTX 2080Ti  |
+| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.9    |    x2.7    | nv_half2  |    kLinear    | RTX 2080Ti  |
 
 #### Inputs
 
-* value: T[float/half/half2]
+* value: T[float/half/half2/int8]
 
   Tensor shape: `[N, num_keys, mum_heads, channel]` 
 
@@ -62,13 +62,21 @@
 
   Spatial shape of each feature map, has shape `[num_levels, 2]`, last dimension 2 represent (h, w)
 
-* sampling_locations: T[float/half/half2]
+* reference_points: T[float/half2]
 
-  The location of sampling points, has shape `[N ,num_queries, num_heads, num_levels, num_points, 2]`, the last dimension 2 represent (x, y). Range: [-1, 1].
+  The reference points.
 
-* attention_weights: T[float/half/half2]
+  Tensor shape: `[N, num_queries, 1, points_per_group * 2]` 
 
-  The weight of sampling points used when calculate the attention, has shape` [N ,num_queries, num_heads, num_levels, num_points]`.
+* sampling_offsets: T[float/half/half2/int8]
+
+  The offset of sampling points.
+
+  Tensor shape: `[N, num_queries, num_heads, num_levels * num_points * 2]` 
+
+* attention_weights: T[float/half/int8]
+
+  The weight of sampling points used when calculate the attention, has shape` [N ,num_queries, num_heads, num_levels * num_points]`.
 
 #### Attributes
 
@@ -76,9 +84,9 @@
 
 #### Outputs
 
-* output: T[float/half/half2]
+* output: T[float/half/int8]
 
-  Tensor shape: `[N, num_queries, mum_heads*channel]`
+  Tensor shape: `[N, num_queries, mum_heads, channel]`
 
 ### Modulated Deformable Conv2d
 
@@ -89,19 +97,19 @@
 
 #### Inputs
 
-* input: T[float/half/half2]
+* input: T[float/half/half2/int8]
 
   Tensor shape: `[N, C_in, H_in, W_in]` 
 
-* offset: T[float/half/half2]
+* offset: T[float/half/half2/int8]
 
   Tensor shape: `[N, deform_groups*K_h*K_w*2, H_out, W_out]`
 
-* mask: T[float/half/half2]
+* mask: T[float/half/half2/int8]
 
   Tensor shape: `[N, deform_groups*K_h*K_w, H_out, W_out]`
 
-* weight: T[float/half/half2]
+* weight: T[float/half/half2/int8]
 
   Tensor shape: `[C_out, C_in/groups, K_h, K_w]`
 
@@ -133,7 +141,7 @@
 
 #### Outputs
 
-* output: T[float/half/half2]
+* output: T[float/half/half2/int8]
 
   Tensor shape: `[N, C_out, H_out, W_out]`
 
@@ -148,7 +156,7 @@
 
 #### Inputs
 
-* img: T[float/half/half2]
+* img: T[float/half/half2/int8]
 
   Tensor shape: `[C, H, W]` 
 
@@ -169,6 +177,6 @@
 
 #### Outputs
 
-* output: T[float/half/half2]
+* output: T[float/half/half2/int8]
 
   Tensor shape: `[C, H, W]`

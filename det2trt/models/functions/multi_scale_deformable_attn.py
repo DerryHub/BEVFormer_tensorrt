@@ -1,6 +1,5 @@
 import torch
 from torch.autograd import Function
-from mmcv.ops.multi_scale_deform_attn import multi_scale_deformable_attn_pytorch
 from mmcv.utils import ext_loader
 
 ext_module = ext_loader.load_ext(
@@ -10,18 +9,19 @@ ext_module = ext_loader.load_ext(
 
 class _MultiScaleDeformableAttnFunction(Function):
     @staticmethod
-    def symbolic(g, value, value_spatial_shapes, sampling_locations, attention_weights):
+    def symbolic(g, value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights):
         return g.op(
             "MultiScaleDeformableAttnTRT",
             value,
             value_spatial_shapes,
-            sampling_locations,
+            reference_points,
+            sampling_offsets,
             attention_weights,
         )
 
     @staticmethod
     def forward(
-        ctx, value, value_spatial_shapes, sampling_locations, attention_weights
+        ctx, value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
     ):
         """GPU version of multi-scale deformable attention.
 
@@ -31,7 +31,8 @@ class _MultiScaleDeformableAttnFunction(Function):
             value_spatial_shapes (Tensor): Spatial shape of
                 each feature map, has shape (num_levels, 2),
                 last dimension 2 represent (h, w)
-            sampling_locations (Tensor): The location of sampling points,
+            reference_points (Tensor): The reference points.
+            sampling_offsets (Tensor): The offset of sampling points,
                 has shape
                 (bs, num_heads, num_queries, num_levels*num_points*2),
                 the last dimension 2 represent (x, y).
@@ -44,8 +45,21 @@ class _MultiScaleDeformableAttnFunction(Function):
         """
         channel = value.shape[3]
         num_level = value_spatial_shapes.shape[0]
-        bs, num_queries, num_heads, dim = sampling_locations.shape
-        sampling_locations = (sampling_locations + 1) / 2
+        bs, num_queries, num_heads, dim = sampling_offsets.shape
+        points_per_group = torch.div(reference_points.shape[-1], 2, rounding_mode="floor")
+        sampling_offsets = sampling_offsets.view(
+            bs,
+            num_queries,
+            num_heads,
+            num_level,
+            torch.div(dim, num_level * 2 * points_per_group, rounding_mode="floor"),
+            points_per_group,
+            2,
+        )
+        offset_normalizer = torch.stack(
+            [value_spatial_shapes[..., 1], value_spatial_shapes[..., 0]], -1
+        )
+        sampling_locations = reference_points.view(bs, num_queries, 1, 1, 1, -1, 2) + sampling_offsets / offset_normalizer.view(1, 1, 1, -1, 1, 1, 2)
         sampling_locations = sampling_locations.view(
             bs,
             num_queries,
@@ -93,65 +107,16 @@ class _MultiScaleDeformableAttnFunction(Function):
         )
         return output.half() if ctx.fp16 else output
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        """GPU version of backward function.
-
-        Args:
-            grad_output (Tensor): Gradient
-                of output tensor of forward.
-
-        Returns:
-             Tuple[Tensor]: Gradient
-                of input tensors in forward.
-        """
-        (
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-        ) = ctx.saved_tensors
-        bs, _, num_heads, channel = value.shape
-        grad_output = grad_output.view(bs, -1, num_heads * channel)
-
-        grad_value = torch.zeros_like(value)
-        grad_sampling_loc = torch.zeros_like(sampling_locations)
-        grad_attn_weight = torch.zeros_like(attention_weights)
-
-        ext_module.ms_deform_attn_backward(
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-            grad_output.contiguous(),
-            grad_value,
-            grad_sampling_loc,
-            grad_attn_weight,
-            im2col_step=ctx.im2col_step,
-        )
-        grad_value = grad_value
-        grad_sampling_loc = 2 * grad_sampling_loc.flatten(3)
-        grad_attn_weight = grad_attn_weight.flatten(3)
-        if ctx.fp16:
-            return (
-                grad_value.half(),
-                None,
-                grad_sampling_loc.half(),
-                grad_attn_weight.half(),
-            )
-        return grad_value, None, grad_sampling_loc, grad_attn_weight
-
 
 class _MultiScaleDeformableAttnFunction2(_MultiScaleDeformableAttnFunction):
     @staticmethod
-    def symbolic(g, value, value_spatial_shapes, sampling_locations, attention_weights):
+    def symbolic(g, value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights):
         return g.op(
             "MultiScaleDeformableAttnTRT2",
             value,
             value_spatial_shapes,
-            sampling_locations,
+            reference_points,
+            sampling_offsets,
             attention_weights,
         )
 
@@ -161,7 +126,7 @@ _multi_scale_deformable_attn_gpu2 = _MultiScaleDeformableAttnFunction2.apply
 
 
 def multi_scale_deformable_attn(
-    value, value_spatial_shapes, sampling_locations, attention_weights
+    value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
 ):
     """Multi-scale deformable attention.
 
@@ -173,10 +138,11 @@ def multi_scale_deformable_attn(
         value_spatial_shapes (Tensor): Spatial shape of
             each feature map, has shape (num_levels, 2),
             last dimension 2 represent (h, w)
-        sampling_locations (Tensor): The location of sampling points,
+        reference_points (Tensor): The reference points.
+        sampling_offsets (Tensor): The offset of sampling points,
             has shape
-            (bs ,num_queries, num_heads, num_levels, num_points, 2),
-            the last dimension 2 represent (x, y), in [-1, 1].
+            (bs, num_heads, num_queries, num_levels*num_points*2),
+            the last dimension 2 represent (x, y).
         attention_weights (Tensor): The weight of sampling points used
             when calculate the attention, has shape
             (bs ,num_queries, num_heads, num_levels, num_points).
@@ -184,19 +150,14 @@ def multi_scale_deformable_attn(
     Returns:
         Tensor: has shape (bs, num_queries, embed_dims)
     """
-    if value.is_cuda:
-        return _multi_scale_deformable_attn_gpu(
-            value, value_spatial_shapes, sampling_locations, attention_weights
-        )
-    else:
-        assert torch.onnx.is_in_onnx_export() is False
-        return multi_scale_deformable_attn_pytorch(
-            value, value_spatial_shapes, sampling_locations, attention_weights
-        )
+    assert value.is_cuda
+    return _multi_scale_deformable_attn_gpu(
+        value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
+    )
 
 
 def multi_scale_deformable_attn2(
-    value, value_spatial_shapes, sampling_locations, attention_weights
+    value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
 ):
     """Multi-scale deformable attention.
 
@@ -208,10 +169,11 @@ def multi_scale_deformable_attn2(
         value_spatial_shapes (Tensor): Spatial shape of
             each feature map, has shape (num_levels, 2),
             last dimension 2 represent (h, w)
-        sampling_locations (Tensor): The location of sampling points,
+        reference_points (Tensor): The reference points.
+        sampling_offsets (Tensor): The offset of sampling points,
             has shape
-            (bs ,num_queries, num_heads, num_levels, num_points, 2),
-            the last dimension 2 represent (x, y), in [-1, 1].
+            (bs, num_heads, num_queries, num_levels*num_points*2),
+            the last dimension 2 represent (x, y).
         attention_weights (Tensor): The weight of sampling points used
             when calculate the attention, has shape
             (bs ,num_queries, num_heads, num_levels, num_points).
@@ -219,12 +181,7 @@ def multi_scale_deformable_attn2(
     Returns:
         Tensor: has shape (bs, num_queries, embed_dims)
     """
-    if value.is_cuda:
-        return _multi_scale_deformable_attn_gpu2(
-            value, value_spatial_shapes, sampling_locations, attention_weights
-        )
-    else:
-        assert torch.onnx.is_in_onnx_export() is False
-        return multi_scale_deformable_attn_pytorch(
-            value, value_spatial_shapes, sampling_locations, attention_weights
-        )
+    assert value.is_cuda
+    return _multi_scale_deformable_attn_gpu2(
+        value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
+    )
