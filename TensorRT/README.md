@@ -92,8 +92,8 @@
 
 |            OP Name            |                          Attributes                          |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type |     Tensor Format     | Test Device |
 | :---------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-------------------: | :---------: |
-| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.6    |    x3.5    |  nv_half  |    kLinear, kCHW4     | RTX 2080Ti  |
-| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x3.3    |    x3.5    | nv_half2  | kLinear, kCHW2, kCHW4 | RTX 2080Ti  |
+| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.7    |    x3.7    |  nv_half  |    kLinear, kCHW4     | RTX 2080Ti  |
+| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x3.3    |    x3.7    | nv_half2  | kLinear, kCHW2, kCHW4 | RTX 2080Ti  |
 
 #### Inputs
 
