@@ -102,10 +102,10 @@ class RotateTestCase(BaseTestCase, unittest.TestCase):
         self.fp16_case(0.0005)
 
     def test_int8_bilinear(self):
-        self.int8_case(0.001)
+        self.int8_case()
 
     def test_int8_nearest(self):
-        self.int8_case(0.001)
+        self.int8_case()
 
 
 class RotateTestCase2(BaseTestCase, unittest.TestCase):
@@ -201,7 +201,7 @@ class RotateTestCase2(BaseTestCase, unittest.TestCase):
         self.fp16_case(0.0005)
 
     def test_int8_bilinear(self):
-        self.int8_case(0.001)
+        self.int8_case()
 
     def test_int8_nearest(self):
-        self.int8_case(0.001)
+        self.int8_case()
