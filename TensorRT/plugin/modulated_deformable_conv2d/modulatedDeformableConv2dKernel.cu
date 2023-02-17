@@ -15,12 +15,11 @@
 #include <cstdio>
 #include <unistd.h>
 
-
 template <typename T> __forceinline__ __device__ T sign_05(T x) {
-    if (x > 0) {
-        return 0.5f;
-    }
-    return -0.5f;
+  if (x > 0) {
+    return 0.5f;
+  }
+  return -0.5f;
 }
 
 template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
@@ -30,9 +29,9 @@ template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
 }
 
 template <> __forceinline__ __device__ int8_t T2int8(__half a) {
-    a = __hgt(a, __int2half_rn(127)) ? __int2half_rn(127) : a;
-    a = __hlt(a, __int2half_rn(-128)) ? __int2half_rn(-128) : a;
-    return int8_t(__half2int_rn(a));
+  a = __hgt(a, __int2half_rn(127)) ? __int2half_rn(127) : a;
+  a = __hlt(a, __int2half_rn(-128)) ? __int2half_rn(-128) : a;
+  return int8_t(__half2int_rn(a));
 }
 
 __forceinline__ __device__ int8_t half2int8(const __half &hval,
@@ -450,7 +449,8 @@ __global__ void modulated_deformable_im2col_gpu_kernel_int8(
     const int stride_h, const int stride_w, const int dilation_h,
     const int dilation_w, const int channel_per_deformable_group,
     const int batch_size, const int num_channels, const int deformable_group,
-    const int height_col, const int width_col, const int hw4, int8_4 *data_col) {
+    const int height_col, const int width_col, const int hw4,
+    int8_4 *data_col) {
   CUDA_1D_KERNEL_LOOP(index, n) {
     // index of output matrix
     const int w_col = index % width_col;
@@ -465,9 +465,9 @@ __global__ void modulated_deformable_im2col_gpu_kernel_int8(
     const int h_in = h_col * stride_h - pad_h;
     const int w_in = w_col * stride_w - pad_w;
 
-    auto *data_col_ptr =
-        (int8_t *)data_col +
-        (c_col * 4 * batch_size + b_col * 4) * hw4 + h_col * width_col + w_col;
+    auto *data_col_ptr = (int8_t *)data_col +
+                         (c_col * 4 * batch_size + b_col * 4) * hw4 +
+                         h_col * width_col + w_col;
     const int8_4 *data_im_ptr =
         data_im + (b_col * ((num_channels + 3) / 4) + c_im) * height * width;
     const int8_t *data_offset_ptr =
@@ -562,10 +562,12 @@ __global__ void output_add_bias_kernel_int8(const int32_t *int32_iw,
 
 __global__ void output_wo_bias_kernel_int8(const int32_t *int32_iw,
                                            float scale_iw, int8_t *output,
-                                           float scale_o, size_t n, int hw_out, int hw4) {
+                                           float scale_o, size_t n, int hw_out,
+                                           int hw4) {
   CUDA_1D_KERNEL_LOOP(index, n) {
-      const int temp32_index = index / hw_out * hw4 + index % hw_out;
-    output[index] = T2int8<float>((int32_iw[temp32_index] * scale_iw) / scale_o);
+    const int temp32_index = index / hw_out * hw4 + index % hw_out;
+    output[index] =
+        T2int8<float>((int32_iw[temp32_index] * scale_iw) / scale_o);
   }
 }
 
@@ -637,7 +639,8 @@ void trt_modulated_deformable_im2col_int8(
       num_kernels, data_im_, scale_i, data_offset_, scale_off, data_mask_,
       scale_mask, height_im, width_im, kernel_h, kenerl_w, pad_h, pad_w,
       stride_h, stride_w, dilation_h, dilation_w, channel_per_deformable_group,
-      batch_size, channels, deformable_group, height_col, width_col, hw4, data_col_);
+      batch_size, channels, deformable_group, height_col, width_col, hw4,
+      data_col_);
 
   cudaCheckError();
 }
@@ -901,7 +904,7 @@ void ModulatedDeformConvForwardCUDAKernel_int8(
   const float scale_iw = scale_i * scale_w;
   const int output_kernel_count = channels_out / group * height_out * width_out;
 
-    for (int b = 0; b < batch; b++) {
+  for (int b = 0; b < batch; b++) {
     const int8_4 *input_start = input + b * input_step;
     const int8_t *offset_start = offset + b * offset_step;
     const int8_t *mask_start = mask + b * mask_step;
@@ -916,19 +919,21 @@ void ModulatedDeformConvForwardCUDAKernel_int8(
       int8_4 *col_start = columns + g * col_g_step;
       int8_t *out_buffer_start = output + b * out_step + g * out_group_step;
 
-        cublasGemmWrap_int8(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
+      cublasGemmWrap_int8(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
                           &alpha, (int8_t *)col_start, n,
                           (int8_t *)weight_start, k, &beta, int32_temp, n);
 
       if (with_bias) {
         const float *bias_start = bias + g * m;
-        output_add_bias_kernel_int8<<<GET_BLOCKS(output_kernel_count), THREADS_PER_BLOCK, 0,
-                                      stream>>>(
-            int32_temp, scale_iw, bias_start, out_buffer_start, scale_o, output_kernel_count, hw_out, hw4);
+        output_add_bias_kernel_int8<<<GET_BLOCKS(output_kernel_count),
+                                      THREADS_PER_BLOCK, 0, stream>>>(
+            int32_temp, scale_iw, bias_start, out_buffer_start, scale_o,
+            output_kernel_count, hw_out, hw4);
       } else {
-        output_wo_bias_kernel_int8<<<GET_BLOCKS(output_kernel_count), THREADS_PER_BLOCK, 0,
-                                     stream>>>(int32_temp, scale_iw,
-                                               out_buffer_start, scale_o, output_kernel_count, hw_out, hw4);
+        output_wo_bias_kernel_int8<<<GET_BLOCKS(output_kernel_count),
+                                     THREADS_PER_BLOCK, 0, stream>>>(
+            int32_temp, scale_iw, out_buffer_start, scale_o,
+            output_kernel_count, hw_out, hw4);
       }
 
       cudaCheckError();

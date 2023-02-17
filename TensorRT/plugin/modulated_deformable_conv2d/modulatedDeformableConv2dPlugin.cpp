@@ -101,9 +101,10 @@ size_t ModulatedDeformableConv2dPlugin::getWorkspaceSize(
     col_size = (nInputPlane + 1) / 2 * 2 * kW * kH * outputHeight *
                outputWidth * sizeof_dtype;
   } else if (sizeof_dtype == 1) {
-    col_size = (nInputPlane + 3) / 4 * 4 * kW * kH * ((outputHeight *
-               outputWidth + 3) /4 * 4) * sizeof_dtype;
-    col_size += nOutputPlane / mGroup * ((outputHeight * outputWidth + 3) /4 * 4) * 4;
+    col_size = (nInputPlane + 3) / 4 * 4 * kW * kH *
+               ((outputHeight * outputWidth + 3) / 4 * 4) * sizeof_dtype;
+    col_size +=
+        nOutputPlane / mGroup * ((outputHeight * outputWidth + 3) / 4 * 4) * 4;
   } else {
     col_size =
         nInputPlane * kW * kH * outputHeight * outputWidth * sizeof_dtype;
@@ -197,9 +198,9 @@ bool ModulatedDeformableConv2dPlugin::supportsFormatCombination(
     int pos, const nvinfer1::PluginTensorDesc *inOut, int nbInputs,
     int nbOutputs) noexcept {
 
-   const int channels_out = inOut[nbInputs].dims.d[1];
-   const int channels_in = inOut[0].dims.d[1] / mGroup;
-   const bool use_int8 = channels_in % 4 == 0 && channels_out % 4 == 0;
+  const int channels_out = inOut[nbInputs].dims.d[1];
+  const int channels_in = inOut[0].dims.d[1] / mGroup;
+  const bool use_int8 = channels_in % 4 == 0 && channels_out % 4 == 0;
 
   if (pos == 0) {
     if (use_h2) {
