@@ -249,22 +249,22 @@ class GridSampler2DTestCase(BaseTestCase, unittest.TestCase):
         self.int8_case(0.25)
 
     def test_int8_nearest_zeros_alignCorners(self):
-        self.int8_case(0.2)
+        self.int8_case()
 
     def test_int8_nearest_zeros_NoAlignCorners(self):
-        self.int8_case(0.2)
+        self.int8_case(0.05)
 
     def test_int8_nearest_border_alignCorners(self):
-        self.int8_case(0.25)
+        self.int8_case()
 
     def test_int8_nearest_border_NoAlignCorners(self):
-        self.int8_case(0.25)
+        self.int8_case(0.05)
 
     def test_int8_nearest_reflection_alignCorners(self):
-        self.int8_case(0.35)
+        self.int8_case()
 
     def test_int8_nearest_reflection_NoAlignCorners(self):
-        self.int8_case(0.35)
+        self.int8_case(0.05)
 
     def test_int8_bicubic_zeros_alignCorners(self):
         self.int8_case(0.15)
@@ -706,22 +706,22 @@ class GridSampler2DTestCase2(BaseTestCase, unittest.TestCase):
         self.int8_case(0.25)
 
     def test_int8_nearest_zeros_alignCorners(self):
-        self.int8_case(0.2)
+        self.int8_case()
 
     def test_int8_nearest_zeros_NoAlignCorners(self):
-        self.int8_case(0.2)
+        self.int8_case(0.05)
 
     def test_int8_nearest_border_alignCorners(self):
-        self.int8_case(0.25)
+        self.int8_case()
 
     def test_int8_nearest_border_NoAlignCorners(self):
-        self.int8_case(0.25)
+        self.int8_case(0.05)
 
     def test_int8_nearest_reflection_alignCorners(self):
-        self.int8_case(0.35)
+        self.int8_case()
 
     def test_int8_nearest_reflection_NoAlignCorners(self):
-        self.int8_case(0.35)
+        self.int8_case(0.05)
 
     def test_int8_bicubic_zeros_alignCorners(self):
         self.int8_case(0.15)
