@@ -101,9 +101,9 @@ size_t ModulatedDeformableConv2dPlugin::getWorkspaceSize(
     col_size = (nInputPlane + 1) / 2 * 2 * kW * kH * outputHeight *
                outputWidth * sizeof_dtype;
   } else if (sizeof_dtype == 1) {
-    col_size = (nInputPlane + 3) / 4 * 4 * kW * kH * outputHeight *
-               outputWidth * sizeof_dtype;
-    col_size += nOutputPlane / mGroup * outputHeight * outputWidth * 4;
+    col_size = (nInputPlane + 3) / 4 * 4 * kW * kH * ((outputHeight *
+               outputWidth + 3) /4 * 4) * sizeof_dtype;
+    col_size += nOutputPlane / mGroup * ((outputHeight * outputWidth + 3) /4 * 4) * 4;
   } else {
     col_size =
         nInputPlane * kW * kH * outputHeight * outputWidth * sizeof_dtype;
@@ -197,6 +197,10 @@ bool ModulatedDeformableConv2dPlugin::supportsFormatCombination(
     int pos, const nvinfer1::PluginTensorDesc *inOut, int nbInputs,
     int nbOutputs) noexcept {
 
+   const int channels_out = inOut[nbInputs].dims.d[1];
+   const int channels_in = inOut[0].dims.d[1] / mGroup;
+   const bool use_int8 = channels_in % 4 == 0 && channels_out % 4 == 0;
+
   if (pos == 0) {
     if (use_h2) {
       return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
@@ -204,13 +208,13 @@ bool ModulatedDeformableConv2dPlugin::supportsFormatCombination(
              (inOut[pos].type == nvinfer1::DataType::kHALF &&
               inOut[pos].format == nvinfer1::TensorFormat::kCHW2) ||
              (inOut[pos].type == nvinfer1::DataType::kINT8 &&
-              inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
+              inOut[pos].format == nvinfer1::TensorFormat::kCHW4 && use_int8);
     }
     return ((inOut[pos].type == nvinfer1::DataType::kFLOAT ||
              inOut[pos].type == nvinfer1::DataType::kHALF) &&
             inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) ||
            (inOut[pos].type == nvinfer1::DataType::kINT8 &&
-            inOut[pos].format == nvinfer1::TensorFormat::kCHW4);
+            inOut[pos].format == nvinfer1::TensorFormat::kCHW4 && use_int8);
   } else if (nbInputs == 5 && pos == 4 &&
              inOut[0].type == nvinfer1::DataType::kINT8) {
     return inOut[pos].type == nvinfer1::DataType::kFLOAT &&
