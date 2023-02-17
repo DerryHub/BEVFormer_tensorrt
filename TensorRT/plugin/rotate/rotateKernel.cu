@@ -15,28 +15,28 @@
 #include <cstdio>
 
 template <typename T> __forceinline__ __device__ T sign_05(T x) {
-    if (x > 0) {
-        return 0.5f;
-    }
-    return -0.5f;
+  if (x > 0) {
+    return 0.5f;
+  }
+  return -0.5f;
 }
 
 template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
-    a = a > 127 ? 127 : a;
-    a = a < -128 ? -128 : a;
-    return int8_t(a + sign_05<T>(a));
+  a = a > 127 ? 127 : a;
+  a = a < -128 ? -128 : a;
+  return int8_t(a + sign_05<T>(a));
 }
 
 template <> __forceinline__ __device__ int8_t T2int8(__half a) {
-    a = __hgt(a, __int2half_rn(127)) ? __int2half_rn(127) : a;
-    a = __hlt(a, __int2half_rn(-128)) ? __int2half_rn(-128) : a;
-    return int8_t(__half2int_rn(a));
+  a = __hgt(a, __int2half_rn(127)) ? __int2half_rn(127) : a;
+  a = __hlt(a, __int2half_rn(-128)) ? __int2half_rn(-128) : a;
+  return int8_t(__half2int_rn(a));
 }
 
 __forceinline__ __device__ int8_t half2int8(const __half &hval,
                                             const float &scale) {
-    __half ret = __hdiv(hval, __float2half(scale));
-    return T2int8<__half>(ret);
+  __half ret = __hdiv(hval, __float2half(scale));
+  return T2int8<__half>(ret);
 }
 
 __forceinline__ __device__ void dp4a(const int32_t *a, const int32_t *b,
