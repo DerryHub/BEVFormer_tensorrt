@@ -30,7 +30,7 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 | BEVFormer base **\*** | NuScenes |     1      |   FP32    |          -          | NDS: 0.517<br/>mAP: 0.416 |   1.5 (x1)   |  1689 (x1)  |  13893 (x1)   | RTX 3090 |
 |    BEVFormer base     | NuScenes |     1      |   FP16    |          -          | NDS: 0.517<br/>mAP: 0.416 | 1.8 (x1.20)  | 849 (x0.50) | 11865 (x0.85) | RTX 3090 |
 | BEVFormer base **\*** | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 | 1.8 (x1.20)  | 426 (x0.25) | 12429 (x0.89) | RTX 3090 |
-| BEVFormer base **\*** | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.515<br/>mAP: 0.414 | 2.2 (x1.47)  | 244 (0.14)  | 11011 (x0.79) | RTX 3090 |
+| BEVFormer base **\*** | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.515<br/>mAP: 0.414 | 2.2 (x1.47)  | 244 (x0.14) | 11011 (x0.79) | RTX 3090 |
 
 **\*** `Out of Memory` when onnx2trt with TensorRT-8.5.1.7, but they convert successfully with TensorRT-8.4.3.1. So the version of these engines is TensorRT-8.4.3.1.
 
@@ -48,7 +48,7 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 | BEVFormer small | NuScenes |     1      |   FP16    |          -          | NDS: 0.479<br/>mAP: 0.371 | 15.4 (x2.33) | 124 (x0.51) | 1723 (x0.37) | RTX 3090 |
 | BEVFormer small | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 16.7 (x2.53) | 165 (x0.67) | 1639 (x0.35) | RTX 3090 |
 | BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.367 | 18.7 (x2.83) | 109 (x0.44) | 1471 (x0.32) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP32    |          -          | NDS: 0.517<br/>mAP: 0.416 |     2.9      | 292 (x0.17) | 5343 (x0.38) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP32    |          -          | NDS: 0.517<br/>mAP: 0.416 | 2.9 (x1.93)  | 292 (x0.17) | 5343 (x0.38) | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      |   FP16    |          -          | NDS: 0.518<br/>mAP: 0.416 | 5.1 (x3.40)  | 148 (x0.09) | 3317 (x0.24) | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.515<br/>mAP: 0.413 | 6.3 (x4.20)  | 201 (x0.12) | 3305 (x0.24) | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.509<br/>mAP: 0.408 | 7.2 (x4.80)  | 132 (x0.08) | 2457 (x0.18) | RTX 3090 |
