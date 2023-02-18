@@ -1,6 +1,6 @@
 # BEVFormer on TensorRT
 
-This repository is a deployment project of [BEVFormer](https://github.com/fundamentalvision/BEVFormer) on [TensorRT](https://developer.nvidia.com/tensorrt), supporting **FP32/FP16/INT8** inference. Meanwhile, in order to improve the inference speed of BEVFormer on TensorRT, this project implements some TensorRT Ops that support [**nv_half**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF__ARITHMETIC.html#group__CUDA__MATH____HALF__ARITHMETIC),  [**nv_half2**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC) and **INT8**. With the accuracy almost unaffected, the inference speed of the **BEVFormer base** can be increased by nearly **four times**, the engine size can be reduced by more than **90%**, and the GPU memory usage can be saved by more than **80%**. In addition, the project also supports common 2D object detection models in [MMDetection](https://github.com/open-mmlab/mmdetection), which support **INT8 Quantization** and **TensorRT Deployment** with a small number of code changes.
+This repository is a deployment project of [BEVFormer](https://github.com/fundamentalvision/BEVFormer) on [TensorRT](https://developer.nvidia.com/tensorrt), supporting **FP32/FP16/INT8** inference. Meanwhile, in order to improve the inference speed of BEVFormer on TensorRT, this project implements some TensorRT Ops that support [**nv_half**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF__ARITHMETIC.html#group__CUDA__MATH____HALF__ARITHMETIC),  [**nv_half2**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC) and **INT8**. With the accuracy almost unaffected, the inference speed of the **BEVFormer base** can be increased by more than **four times**, the engine size can be reduced by more than **90%**, and the GPU memory usage can be saved by more than **80%**. In addition, the project also supports common 2D object detection models in [MMDetection](https://github.com/open-mmlab/mmdetection), which support **INT8 Quantization** and **TensorRT Deployment** with a small number of code changes.
 
 ## Benchmarks
 
@@ -17,20 +17,20 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 
 #### BEVFormer TensorRT with MMDeploy Plugins (Only Support FP32)
 
-|         Model         |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |            FPS            |        Size (MB)         |        Memory (MB)         |  Device  |
-| :-------------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-----------------------: | :----------------------: | :------------------------: | :------: |
-|    BEVFormer tiny     | NuScenes |     1      |   FP32    |          -          | NDS: 0.354<br/>mAP: 0.252 |           37.9            |           136            |            2159            | RTX 3090 |
-|    BEVFormer tiny     | NuScenes |     1      |   FP16    |          -          | NDS: 0.354<br/>mAP: 0.252 |  69.2<br/>$\uparrow$ 83%  | 74<br/>$\downarrow$ 46%  | 1729<br/>$\downarrow$ 20%  | RTX 3090 |
-|    BEVFormer tiny     | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.249 | 65.1<br />$\uparrow$ 72%  | 58<br/>$\downarrow$ 57%  | 1737<br/>$\downarrow$ 20%  | RTX 3090 |
-|    BEVFormer tiny     | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.249 | 70.7<br />$\uparrow$ 87%  | 54<br/>$\downarrow$ 60%  | 1665<br/>$\downarrow$ 23%  | RTX 3090 |
-|    BEVFormer small    | NuScenes |     1      |   FP32    |          -          | NDS: 0.478<br/>mAP: 0.370 |            6.6            |           245            |            4663            | RTX 3090 |
-|    BEVFormer small    | NuScenes |     1      |   FP16    |          -          | NDS: 0.478<br/>mAP: 0.370 |  12.8<br/>$\uparrow$ 94%  | 126<br/>$\downarrow$ 49% | 3719<br/>$\downarrow$ 20%  | RTX 3090 |
-|    BEVFormer small    | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.476<br/>mAP: 0.367 |  8.7<br />$\uparrow$ 32%  | 158<br/>$\downarrow$ 36% | 4079<br/>$\downarrow$ 13%  | RTX 3090 |
-|    BEVFormer small    | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 13.3<br />$\uparrow$ 102% | 106<br/>$\downarrow$ 57% | 3441<br/>$\downarrow$ 26%  | RTX 3090 |
-| BEVFormer base **\*** | NuScenes |     1      |   FP32    |          -          | NDS: 0.517<br/>mAP: 0.416 |            1.5            |           1689           |           13893            | RTX 3090 |
-|    BEVFormer base     | NuScenes |     1      |   FP16    |          -          | NDS: 0.517<br/>mAP: 0.416 |  1.8<br/>$\uparrow$ 20%   | 849<br/>$\downarrow$ 50% | 11865<br/>$\downarrow$ 15% | RTX 3090 |
-| BEVFormer base **\*** | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 |  1.8<br/>$\uparrow$ 20%   | 426<br/>$\downarrow$ 75% | 12429<br/>$\downarrow$ 11% | RTX 3090 |
-| BEVFormer base **\*** | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.515<br/>mAP: 0.414 |  2.2<br/>$\uparrow$ 47%   | 244<br/>$\downarrow$ 86% | 11011<br/>$\downarrow$ 21% | RTX 3090 |
+|         Model         |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |     FPS      |  Size (MB)  |  Memory (MB)  |  Device  |
+| :-------------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :----------: | :---------: | :-----------: | :------: |
+|    BEVFormer tiny     | NuScenes |     1      |   FP32    |          -          | NDS: 0.354<br/>mAP: 0.252 |  37.9 (x1)   |  136 (x1)   |   2159 (x1)   | RTX 3090 |
+|    BEVFormer tiny     | NuScenes |     1      |   FP16    |          -          | NDS: 0.354<br/>mAP: 0.252 | 69.2 (x1.83) | 74 (x0.54)  | 1729 (x0.80)  | RTX 3090 |
+|    BEVFormer tiny     | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.249 | 65.1 (x1.72) | 58 (x0.43)  | 1737 (x0.80)  | RTX 3090 |
+|    BEVFormer tiny     | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.249 | 70.7 (x1.87) | 54 (x0.40)  | 1665 (x0.77)  | RTX 3090 |
+|    BEVFormer small    | NuScenes |     1      |   FP32    |          -          | NDS: 0.478<br/>mAP: 0.370 |   6.6 (x1)   |  245 (x1)   |   4663 (x1)   | RTX 3090 |
+|    BEVFormer small    | NuScenes |     1      |   FP16    |          -          | NDS: 0.478<br/>mAP: 0.370 | 12.8 (x1.94) | 126 (x0.51) | 3719 (x0.80)  | RTX 3090 |
+|    BEVFormer small    | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.476<br/>mAP: 0.367 | 8.7 (x1.32)  | 158 (x0.64) | 4079 (x0.87)  | RTX 3090 |
+|    BEVFormer small    | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 13.3 (x2.02) | 106 (x0.43) | 3441 (x0.74)  | RTX 3090 |
+| BEVFormer base **\*** | NuScenes |     1      |   FP32    |          -          | NDS: 0.517<br/>mAP: 0.416 |   1.5 (x1)   |  1689 (x1)  |  13893 (x1)   | RTX 3090 |
+|    BEVFormer base     | NuScenes |     1      |   FP16    |          -          | NDS: 0.517<br/>mAP: 0.416 | 1.8 (x1.20)  | 849 (x0.50) | 11865 (x0.85) | RTX 3090 |
+| BEVFormer base **\*** | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 | 1.8 (x1.20)  | 426 (x0.25) | 12429 (x0.89) | RTX 3090 |
+| BEVFormer base **\*** | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.515<br/>mAP: 0.414 | 2.2 (x1.47)  | 244 (x0.14) | 11011 (x0.79) | RTX 3090 |
 
 **\*** `Out of Memory` when onnx2trt with TensorRT-8.5.1.7, but they convert successfully with TensorRT-8.4.3.1. So the version of these engines is TensorRT-8.4.3.1.
 
@@ -38,31 +38,31 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 
 **FP16 Plugins with nv_half**
 
-|      Model      |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |        FPS/Improve        |        Size (MB)         |        Memory (MB)        |  Device  |
-| :-------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-----------------------: | :----------------------: | :-----------------------: | :------: |
-| BEVFormer tiny  | NuScenes |     1      |   FP32    |          -          | NDS: 0.354<br/>mAP: 0.252 |  41.4<br/>$\uparrow$ 9%   | 135<br/>$\downarrow$ 1%  | 1699<br/>$\downarrow$ 21% | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      |   FP16    |          -          | NDS: 0.354<br/>mAP: 0.252 | 76.8<br/>$\uparrow$ 103%  | 73<br/>$\downarrow$ 46%  | 1203<br/>$\downarrow$ 44% | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.352<br/>mAP: 0.249 | 84.0<br />$\uparrow$ 122% | 57<br/>$\downarrow$ 58%  | 1077<br/>$\downarrow$ 50% | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.250 | 96.1<br />$\uparrow$ 154% | 54<br/>$\downarrow$ 60%  | 1109<br/>$\downarrow$ 49% | RTX 3090 |
-| BEVFormer small | NuScenes |     1      |   FP32    |          -          | NDS: 0.478<br/>mAP: 0.370 |   7.0<br/>$\uparrow$ 6%   | 246<br/>$\downarrow$ 0%  | 2645<br/>$\downarrow$ 43% | RTX 3090 |
-| BEVFormer small | NuScenes |     1      |   FP16    |          -          | NDS: 0.479<br/>mAP: 0.370 | 16.3<br/>$\uparrow$ 147%  | 124<br/>$\downarrow$ 49% | 1789<br/>$\downarrow$ 62% | RTX 3090 |
-| BEVFormer small | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 10.4<br />$\uparrow$ 58%  | 157<br/>$\downarrow$ 36% | 1925<br/>$\downarrow$ 59% | RTX 3090 |
-| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 17.8<br />$\uparrow$ 170% | 103<br/>$\downarrow$ 58% | 1627<br/>$\downarrow$ 65% | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP32    |          -          | NDS: 0.516<br/>mAP: 0.416 |  3.2<br/>$\uparrow$ 113%  | 283<br/>$\downarrow$ 83% | 5175<br/>$\downarrow$ 63% | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP16    |          -          | NDS: 0.515<br/>mAP: 0.415 |  6.5<br/>$\uparrow$ 333%  | 144<br/>$\downarrow$ 91% | 3323<br/>$\downarrow$ 76% | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 | 4.2<br />$\uparrow$ 180%  | 188<br/>$\downarrow$ 89% | 3139<br/>$\downarrow$ 77% | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 | 5.8<br />$\uparrow$ 287%  | 125<br/>$\downarrow$ 93% | 3073<br/>$\downarrow$ 78% | RTX 3090 |
+|      Model      |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          | FPS/Improve  |  Size (MB)  | Memory (MB)  |  Device  |
+| :-------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :----------: | :---------: | :----------: | :------: |
+| BEVFormer tiny  | NuScenes |     1      |   FP32    |          -          | NDS: 0.355<br/>mAP: 0.252 | 39.2 (x1.03) | 135 (x0.99) | 1691 (x0.78) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      |   FP16    |          -          | NDS: 0.355<br/>mAP: 0.251 | 79.6 (x2.10) | 72 (x0.53)  | 1203 (x0.56) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.352<br/>mAP: 0.249 | 88.3 (x2.33) | 59 (x0.43)  | 1199 (x0.56) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.250 | 97.5 (x2.57) | 52 (x0.38)  | 1055 (x0.49) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      |   FP32    |          -          | NDS: 0.478<br/>mAP: 0.370 | 7.1 (x1.08)  | 250 (x1.02) | 2625 (x0.56) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      |   FP16    |          -          | NDS: 0.479<br/>mAP: 0.371 | 15.4 (x2.33) | 124 (x0.51) | 1723 (x0.37) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 16.7 (x2.53) | 165 (x0.67) | 1639 (x0.35) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.367 | 18.7 (x2.83) | 109 (x0.44) | 1471 (x0.32) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP32    |          -          | NDS: 0.517<br/>mAP: 0.416 | 2.9 (x1.93)  | 292 (x0.17) | 5343 (x0.38) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP16    |          -          | NDS: 0.518<br/>mAP: 0.416 | 5.1 (x3.40)  | 148 (x0.09) | 3317 (x0.24) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      | FP32/INT8 | PTQ max/per-tensor  | NDS: 0.515<br/>mAP: 0.413 | 6.3 (x4.20)  | 201 (x0.12) | 3305 (x0.24) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.509<br/>mAP: 0.408 | 7.2 (x4.80)  | 132 (x0.08) | 2457 (x0.18) | RTX 3090 |
 
 **FP16 Plugins with nv_half2**
 
-|      Model      |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |            FPS            |        Size (MB)         |        Memory (MB)        |  Device  |
-| :-------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-----------------------: | :----------------------: | :-----------------------: | :------: |
-| BEVFormer tiny  | NuScenes |     1      |   FP16    |          -          | NDS: 0.354<br/>mAP: 0.251 | 90.7<br/>$\uparrow$ 139%  | 73<br/>$\downarrow$ 46%  | 1211<br/>$\downarrow$ 44% | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.353<br/>mAP: 0.250 | 98.4<br />$\uparrow$ 160% | 54<br/>$\downarrow$ 60%  | 1109<br/>$\downarrow$ 49% | RTX 3090 |
-| BEVFormer small | NuScenes |     1      |   FP16    |          -          | NDS: 0.478<br/>mAP: 0.370 | 18.2<br/>$\uparrow$ 176%  | 124<br/>$\downarrow$ 49% | 1843<br/>$\downarrow$ 60% | RTX 3090 |
-| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.477<br/>mAP: 0.368 | 18.4<br />$\uparrow$ 179% | 105<br/>$\downarrow$ 57% | 1629<br/>$\downarrow$ 65% | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP16    |          -          | NDS: 0.515<br/>mAP: 0.415 | 7.3<br />$\uparrow$ 387%  | 144<br/>$\downarrow$ 91% | 3323<br/>$\downarrow$ 76% | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 | 6.7<br />$\uparrow$ 347%  | 124<br/>$\downarrow$ 93% | 2437<br/>$\downarrow$ 82% | RTX 3090 |
+|      Model      |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |      FPS      |  Size (MB)  | Memory (MB)  |  Device  |
+| :-------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-----------: | :---------: | :----------: | :------: |
+| BEVFormer tiny  | NuScenes |     1      |   FP16    |          -          | NDS: 0.355<br/>mAP: 0.252 | 90.7 (x2.39)  | 72 (x0.53)  | 1203 (x0.56) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.354<br/>mAP: 0.250 | 101.7 (x2.68) | 54 (x0.40)  | 1091 (x0.51) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      |   FP16    |          -          | NDS: 0.478<br/>mAP: 0.370 | 17.9 (x2.71)  | 152 (x0.62) | 1639 (x0.35) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.478<br/>mAP: 0.369 | 21.5 (x3.26)  | 134 (x0.55) | 1507 (x0.32) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP16    |          -          | NDS: 0.517<br/>mAP: 0.416 |  6.6 (x4.40)  | 172 (x0.10) | 3341 (x0.24) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ max/per-tensor  | NDS: 0.516<br/>mAP: 0.414 |  7.7 (x5.13)  | 133 (x0.08) | 2691 (x0.19) | RTX 3090 |
 
 ### 2D Detection Models
 
@@ -70,23 +70,23 @@ This project also supports common 2D object detection models in MMDetection with
 
 #### YOLOx
 
-|                            Model                             | Data | Framework | Batch Size | Float/Int | Quantization Method |                             mAP                              |  FPS  | Size (MB) | Memory (MB) |  Device  |
-| :----------------------------------------------------------: | :--: | :-------: | :--------: | :-------: | :-----------------: | :----------------------------------------------------------: | :---: | :-------: | :---------: | :------: |
-| YOLOx<br />[download](https://drive.google.com/file/d/10_mRoiLfK1JEIVq2uqtkBLHES9QgoFgm/view?usp=share_link) | COCO |  PyTorch  |     32     |   FP32    |          -          | mAP: 0.506<br/>mAP_50: 0.685<br/>mAP_75: 0.55<br/>mAP_s: 0.32<br/>mAP_m: 0.557<br/>mAP_l: 0.667 | 63.1  |    379    |    7617     | RTX 3090 |
-|                            YOLOx                             | COCO | TensorRT  |     32     |   FP32    |          -          | mAP: 0.506<br/>mAP_50: 0.685<br/>mAP_75: 0.55<br/>mAP_s: 0.32<br/>mAP_m: 0.556<br/>mAP_l: 0.667 | 71.3  |    546    |    9943     | RTX 3090 |
-|                            YOLOx                             | COCO | TensorRT  |     32     |   FP16    |          -          | mAP: 0.506<br/>mAP_50: 0.685<br/>mAP_75: 0.55<br/>mAP_s: 0.32<br/>mAP_m: 0.556<br/>mAP_l: 0.668 | 296.8 |    192    |    4567     | RTX 3090 |
-|                            YOLOx                             | COCO | TensorRT  |     32     | FP32/INT8 | PTQ max/per-tensor  | mAP: 0.488<br/>mAP_50: 0.671<br/>mAP_75: 0.538<br/>mAP_s: 0.311<br/>mAP_m: 0.538<br/>mAP_l: 0.649 | 556.4 |    99     |    5225     | RTX 3090 |
-|                            YOLOx                             | COCO | TensorRT  |     32     | FP16/INT8 | PTQ max/per-tensor  | mAP: 0.479<br/>mAP_50: 0.662<br/>mAP_75: 0.53<br/>mAP_s: 0.307<br/>mAP_m: 0.533<br/>mAP_l: 0.634 | 550.6 |    99     |    5119     | RTX 3090 |
+|                            Model                             | Data | Framework | Batch Size | Float/Int | Quantization Method |    mAP     |       FPS       |  Size (MB)  | Memory (MB)  |  Device  |
+| :----------------------------------------------------------: | :--: | :-------: | :--------: | :-------: | :-----------------: | :--------: | :-------------: | :---------: | :----------: | :------: |
+| YOLOx<br />[download](https://drive.google.com/file/d/10_mRoiLfK1JEIVq2uqtkBLHES9QgoFgm/view?usp=share_link) | COCO |  PyTorch  |     32     |   FP32    |          -          | mAP: 0.506 |      63.1       |     379     |     7617     | RTX 3090 |
+|                            YOLOx                             | COCO | TensorRT  |     32     |   FP32    |          -          | mAP: 0.506 |    71.3 (x1)    |  546 (x1)   |  9943 (x1)   | RTX 3090 |
+|                            YOLOx                             | COCO | TensorRT  |     32     |   FP16    |          -          | mAP: 0.506 | 296.8   (x4.16) | 192 (x0.35) | 4567 (x0.46) | RTX 3090 |
+|                            YOLOx                             | COCO | TensorRT  |     32     | FP32/INT8 | PTQ max/per-tensor  | mAP: 0.488 |  556.4 (x7.80)  | 99 (x0.18)  | 5225 (x0.53) | RTX 3090 |
+|                            YOLOx                             | COCO | TensorRT  |     32     | FP16/INT8 | PTQ max/per-tensor  | mAP: 0.479 |  550.6 (x7.72)  | 99 (x0.18)  | 5119 (x0.51) | RTX 3090 |
 
 #### CenterNet
 
-|                            Model                             | Data | Framework | Batch Size | Float/Int | Quantization Method |                             mAP                              |  FPS   | Size (MB) | Memory (MB) |  Device  |
-| :----------------------------------------------------------: | :--: | :-------: | :--------: | :-------: | :-----------------: | :----------------------------------------------------------: | :----: | :-------: | :---------: | :------: |
-| CenterNet<br />[download](https://drive.google.com/file/d/1uZVIpDQEWIgY5-1IivQte-9Kue6k71A9/view?usp=share_link) | COCO |  PyTorch  |     32     |   FP32    |          -          | mAP: 0.299<br/>mAP_50: 0.466<br/>mAP_75: 0.319<br/>mAP_s: 0.106<br/>mAP_m: 0.337<br/>mAP_l: 0.463 | 337.4  |    56     |    5171     | RTX 3090 |
-|                          CenterNet                           | COCO | TensorRT  |     32     |   FP32    |          -          | mAP: 0.299<br/>mAP_50: 0.466<br/>mAP_75: 0.319<br/>mAP_s: 0.106<br/>mAP_m: 0.337<br/>mAP_l: 0.463 | 475.6  |    58     |    8241     | RTX 3090 |
-|                          CenterNet                           | COCO | TensorRT  |     32     |   FP16    |          -          | mAP: 0.297<br/>mAP_50: 0.463<br/>mAP_75: 0.316<br/>mAP_s: 0.106<br/>mAP_m: 0.336<br/>mAP_l: 0.46 | 1247.1 |    29     |    5183     | RTX 3090 |
-|                          CenterNet                           | COCO | TensorRT  |     32     | FP32/INT8 | PTQ max/per-tensor  | mAP: 0.27<br/>mAP_50: 0.426<br/>mAP_75: 0.285<br/>mAP_s: 0.086<br/>mAP_m: 0.299<br/>mAP_l: 0.438 | 1534.0 |    20     |    6549     | RTX 3090 |
-|                          CenterNet                           | COCO | TensorRT  |     32     | FP16/INT8 | PTQ max/per-tensor  | mAP: 0.285<br/>mAP_50: 0.448<br/>mAP_75: 0.303<br/>mAP_s: 0.096<br/>mAP_m: 0.319<br/>mAP_l: 0.451 | 1889.0 |    17     |    6453     | RTX 3090 |
+|                            Model                             | Data | Framework | Batch Size | Float/Int | Quantization Method |    mAP     |      FPS       | Size (MB)  | Memory (MB)  |  Device  |
+| :----------------------------------------------------------: | :--: | :-------: | :--------: | :-------: | :-----------------: | :--------: | :------------: | :--------: | :----------: | :------: |
+| CenterNet<br />[download](https://drive.google.com/file/d/1uZVIpDQEWIgY5-1IivQte-9Kue6k71A9/view?usp=share_link) | COCO |  PyTorch  |     32     |   FP32    |          -          | mAP: 0.299 |     337.4      |     56     |     5171     | RTX 3090 |
+|                          CenterNet                           | COCO | TensorRT  |     32     |   FP32    |          -          | mAP: 0.299 |   475.6 (x1)   |  58 (x1)   |  8241 (x1)   | RTX 3090 |
+|                          CenterNet                           | COCO | TensorRT  |     32     |   FP16    |          -          | mAP: 0.297 | 1247.1 (x2.62) | 29 (x0.50) | 5183 (x0.63) | RTX 3090 |
+|                          CenterNet                           | COCO | TensorRT  |     32     | FP32/INT8 | PTQ max/per-tensor  | mAP: 0.27  | 1534.0 (x3.22) | 20 (x0.34) | 6549 (x0.79) | RTX 3090 |
+|                          CenterNet                           | COCO | TensorRT  |     32     | FP16/INT8 | PTQ max/per-tensor  | mAP: 0.285 | 1889.0 (x3.97) | 17 (x0.29) | 6453 (x0.78) | RTX 3090 |
 
 ## Install
 
