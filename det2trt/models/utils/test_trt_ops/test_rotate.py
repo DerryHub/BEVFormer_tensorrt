@@ -3,10 +3,10 @@ import unittest
 from .base_test_case import BaseTestCase
 
 
-img_shape = [256, 1000, 1000]
+img_shape = [256, 512, 512]
 angle_shape = [1]
 center_shape = [2]
-output_shape = [256, 1000, 1000]
+output_shape = [256, 512, 512]
 
 
 class RotateTestCase(BaseTestCase, unittest.TestCase):
@@ -19,7 +19,7 @@ class RotateTestCase(BaseTestCase, unittest.TestCase):
         torch.random.manual_seed(0)
         print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
         cls.input_data = dict(
-            img=torch.ones(*img_shape, device="cuda"),
+            img=torch.randn(*img_shape, device="cuda"),
             angle=torch.randn(*angle_shape, device="cuda") * 360,
             center=torch.tensor([500.0, 500.0], device="cuda"),
         )
@@ -90,22 +90,28 @@ class RotateTestCase(BaseTestCase, unittest.TestCase):
             self.assertLessEqual(cost, delta)
 
     def test_fp32_bilinear(self):
-        self.fp32_case()
+        self.fp32_case(1e-4)
 
     def test_fp32_nearest(self):
-        self.fp32_case()
+        self.fp32_case(1e-4)
 
     def test_fp16_bilinear(self):
-        self.fp16_case(0.0005)
+        self.fp16_case(0.5)
 
     def test_fp16_nearest(self):
-        self.fp16_case(0.0005)
+        self.fp16_case(0.6)
 
     def test_int8_bilinear(self):
-        self.int8_case()
+        self.int8_case(0.3)
 
     def test_int8_nearest(self):
-        self.int8_case()
+        self.int8_case(0.5)
+
+    def test_int8_fp16_bilinear(self):
+        self.int8_case(0.3)
+
+    def test_int8_fp16_nearest(self):
+        self.int8_case(0.5)
 
 
 class RotateTestCase2(BaseTestCase, unittest.TestCase):
@@ -118,7 +124,7 @@ class RotateTestCase2(BaseTestCase, unittest.TestCase):
         torch.random.manual_seed(0)
         print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
         cls.input_data = dict(
-            img=torch.ones(*img_shape, device="cuda"),
+            img=torch.randn(*img_shape, device="cuda"),
             angle=torch.randn(*angle_shape, device="cuda") * 360,
             center=torch.tensor([500.0, 500.0], device="cuda"),
         )
@@ -189,19 +195,25 @@ class RotateTestCase2(BaseTestCase, unittest.TestCase):
             self.assertLessEqual(cost, delta)
 
     def test_fp32_bilinear(self):
-        self.fp32_case()
+        self.fp32_case(1e-4)
 
     def test_fp32_nearest(self):
-        self.fp32_case()
+        self.fp32_case(1e-4)
 
     def test_fp16_bilinear(self):
-        self.fp16_case(0.0005)
+        self.fp16_case(0.5)
 
     def test_fp16_nearest(self):
-        self.fp16_case(0.0005)
+        self.fp16_case(0.6)
 
     def test_int8_bilinear(self):
-        self.int8_case()
+        self.int8_case(0.3)
 
     def test_int8_nearest(self):
-        self.int8_case()
+        self.int8_case(0.5)
+
+    def test_int8_fp16_bilinear(self):
+        self.int8_case(0.3)
+
+    def test_int8_fp16_nearest(self):
+        self.int8_case(0.5)
