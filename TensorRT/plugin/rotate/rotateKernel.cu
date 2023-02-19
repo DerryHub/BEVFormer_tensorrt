@@ -423,7 +423,8 @@ __global__ void rotateKernel_int8(const int nthreads, int8_4 *output,
 
   const __half ang = __hmul(__float2half(*angle), __float2half(-M_PI / 180.f));
   const __half cx = __hsub(__float2half(center[0]), __float2half(0.5f * width)),
-               cy = __hsub(__float2half(center[1]), __float2half(0.5f * height));
+               cy =
+                   __hsub(__float2half(center[1]), __float2half(0.5f * height));
   const __half matrix[6] = {
       hcos(ang),  hsin(ang), -cx * hcos(ang) - cy * hsin(ang) + cx,
       -hsin(ang), hcos(ang), cx * hsin(ang) - cy * hcos(ang) + cy};
@@ -563,144 +564,144 @@ __global__ void rotateKernel_int8(const int nthreads, int8_4 *output,
                                   float scale_i, const __half *angle,
                                   const __half *center, int channel, int height,
                                   int width, RotateInterpolation interp) {
-    int inp_sC = width * height;
-    int inp_sH = width;
-    int inp_sW = 1;
+  int inp_sC = width * height;
+  int inp_sH = width;
+  int inp_sW = 1;
 
-    const __half ang = __hmul(*angle, __float2half(-M_PI / 180.f));
-    const __half cx = __hsub(center[0], __float2half(0.5f * width)),
-            cy = __hsub(center[1], __float2half(0.5f * height));
-    const __half matrix[6] = {
-            hcos(ang),  hsin(ang), -cx * hcos(ang) - cy * hsin(ang) + cx,
-            -hsin(ang), hcos(ang), cx * hsin(ang) - cy * hcos(ang) + cy};
+  const __half ang = __hmul(*angle, __float2half(-M_PI / 180.f));
+  const __half cx = __hsub(center[0], __float2half(0.5f * width)),
+               cy = __hsub(center[1], __float2half(0.5f * height));
+  const __half matrix[6] = {
+      hcos(ang),  hsin(ang), -cx * hcos(ang) - cy * hsin(ang) + cx,
+      -hsin(ang), hcos(ang), cx * hsin(ang) - cy * hcos(ang) + cy};
 
-    CUDA_1D_KERNEL_LOOP(index, nthreads) {
-        channel = (channel + 3) / 4;
-        const int w = index % width;
-        const int h = (index / width) % height;
+  CUDA_1D_KERNEL_LOOP(index, nthreads) {
+    channel = (channel + 3) / 4;
+    const int w = index % width;
+    const int h = (index / width) % height;
 
-        const __half2 xy = __hadd2(
-                __hfma2(__float2half2_rn(-0.5f),
+    const __half2 xy = __hadd2(
+        __hfma2(__float2half2_rn(-0.5f),
+                __floats2half2_rn(static_cast<float>(width),
+                                  static_cast<float>(height)),
+                __float2half2_rn(0.5f)),
+        __floats2half2_rn(static_cast<float>(w), static_cast<float>(h)));
+    const __half2 grid_xy =
+        __h2div(__hadd2(__hmul2(__halves2half2(matrix[0], matrix[3]),
+                                __half2half2(__low2half(xy))),
+                        __hfma2(__halves2half2(matrix[1], matrix[4]),
+                                __half2half2(__high2half(xy)),
+                                __halves2half2(matrix[2], matrix[5]))),
+                __hmul2(__float2half2_rn(0.5f),
                         __floats2half2_rn(static_cast<float>(width),
-                                          static_cast<float>(height)),
-                        __float2half2_rn(0.5f)),
-                __floats2half2_rn(static_cast<float>(w), static_cast<float>(h)));
-        const __half2 grid_xy =
-                __h2div(__hadd2(__hmul2(__halves2half2(matrix[0], matrix[3]),
-                                        __half2half2(__low2half(xy))),
-                                __hfma2(__halves2half2(matrix[1], matrix[4]),
-                                        __half2half2(__high2half(xy)),
-                                        __halves2half2(matrix[2], matrix[5]))),
-                        __hmul2(__float2half2_rn(0.5f),
-                                __floats2half2_rn(static_cast<float>(width),
-                                                  static_cast<float>(height))));
+                                          static_cast<float>(height))));
 
-        __half2 ixy = grid_sampler_compute_source_index_h2(
-                grid_xy, __floats2half2_rn(static_cast<float>(width),
-                                           static_cast<float>(height)));
-        __half ix = __low2half(ixy);
-        __half iy = __high2half(ixy);
+    __half2 ixy = grid_sampler_compute_source_index_h2(
+        grid_xy, __floats2half2_rn(static_cast<float>(width),
+                                   static_cast<float>(height)));
+    __half ix = __low2half(ixy);
+    __half iy = __high2half(ixy);
 
-        if (interp == RotateInterpolation::Bilinear) {
-            // get NE, NW, SE, SW pixel values from (x, y)
-            int ix_nw = static_cast<int>(hfloor(ix));
-            int iy_nw = static_cast<int>(hfloor(iy));
-            int ix_ne = ix_nw + 1;
-            int iy_ne = iy_nw;
-            int ix_sw = ix_nw;
-            int iy_sw = iy_nw + 1;
-            int ix_se = ix_nw + 1;
-            int iy_se = iy_nw + 1;
+    if (interp == RotateInterpolation::Bilinear) {
+      // get NE, NW, SE, SW pixel values from (x, y)
+      int ix_nw = static_cast<int>(hfloor(ix));
+      int iy_nw = static_cast<int>(hfloor(iy));
+      int ix_ne = ix_nw + 1;
+      int iy_ne = iy_nw;
+      int ix_sw = ix_nw;
+      int iy_sw = iy_nw + 1;
+      int ix_se = ix_nw + 1;
+      int iy_se = iy_nw + 1;
 
-            // get surfaces to each neighbor:
-            float scale_area = 1 / 127.f;
-            float scale_out = scale_area * scale_i / scale_o;
-            int8_4 weight;
-            weight.x = half2int8(__hmul(__hsub(static_cast<__half>(ix_se), ix),
-                                        __hsub(static_cast<__half>(iy_se), iy)),
-                                 scale_area);
-            weight.y = half2int8(__hmul(__hsub(ix, static_cast<__half>(ix_sw)),
-                                        __hsub(static_cast<__half>(iy_sw), iy)),
-                                 scale_area);
-            weight.z = half2int8(__hmul(__hsub(static_cast<__half>(ix_ne), ix),
-                                        __hsub(iy, static_cast<__half>(iy_ne))),
-                                 scale_area);
-            weight.w = half2int8(__hmul(__hsub(ix, static_cast<__half>(ix_nw)),
-                                        __hsub(iy, static_cast<__half>(iy_nw))),
-                                 scale_area);
-            int8_4 inps[4];
-            int32_t output_temp;
+      // get surfaces to each neighbor:
+      float scale_area = 1 / 127.f;
+      float scale_out = scale_area * scale_i / scale_o;
+      int8_4 weight;
+      weight.x = half2int8(__hmul(__hsub(static_cast<__half>(ix_se), ix),
+                                  __hsub(static_cast<__half>(iy_se), iy)),
+                           scale_area);
+      weight.y = half2int8(__hmul(__hsub(ix, static_cast<__half>(ix_sw)),
+                                  __hsub(static_cast<__half>(iy_sw), iy)),
+                           scale_area);
+      weight.z = half2int8(__hmul(__hsub(static_cast<__half>(ix_ne), ix),
+                                  __hsub(iy, static_cast<__half>(iy_ne))),
+                           scale_area);
+      weight.w = half2int8(__hmul(__hsub(ix, static_cast<__half>(ix_nw)),
+                                  __hsub(iy, static_cast<__half>(iy_nw))),
+                           scale_area);
+      int8_4 inps[4];
+      int32_t output_temp;
 
-            // calculate bilinear weighted pixel value and set output pixel
-            auto inp_ptr = input;
-            auto out_ptr = output + h * inp_sH + w * inp_sW;
-            for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
-                if (within_bounds_2d(iy_nw, ix_nw, height, width)) {
-                    const int8_4 &inp = inp_ptr[iy_nw * inp_sH + ix_nw * inp_sW];
-                    inps[0].x = inp.x;
-                    inps[1].x = inp.y;
-                    inps[2].x = inp.z;
-                    inps[3].x = inp.w;
-                }
-                if (within_bounds_2d(iy_ne, ix_ne, height, width)) {
-                    const int8_4 &inp = inp_ptr[iy_ne * inp_sH + ix_ne * inp_sW];
-                    inps[0].y = inp.x;
-                    inps[1].y = inp.y;
-                    inps[2].y = inp.z;
-                    inps[3].y = inp.w;
-                }
-                if (within_bounds_2d(iy_sw, ix_sw, height, width)) {
-                    const int8_4 &inp = inp_ptr[iy_sw * inp_sH + ix_sw * inp_sW];
-                    inps[0].z = inp.x;
-                    inps[1].z = inp.y;
-                    inps[2].z = inp.z;
-                    inps[3].z = inp.w;
-                }
-                if (within_bounds_2d(iy_se, ix_se, height, width)) {
-                    const int8_4 &inp = inp_ptr[iy_se * inp_sH + ix_se * inp_sW];
-                    inps[0].w = inp.x;
-                    inps[1].w = inp.y;
-                    inps[2].w = inp.z;
-                    inps[3].w = inp.w;
-                }
-                output_temp = 0;
-                dp4a((const int32_t *)inps, (const int32_t *)&weight, output_temp);
-                out_ptr->x = T2int8<float>(output_temp * scale_out);
-
-                output_temp = 0;
-                dp4a((const int32_t *)(inps + 1), (const int32_t *)&weight,
-                     output_temp);
-                out_ptr->y = T2int8<float>(output_temp * scale_out);
-
-                output_temp = 0;
-                dp4a((const int32_t *)(inps + 2), (const int32_t *)&weight,
-                     output_temp);
-                out_ptr->z = T2int8<float>(output_temp * scale_out);
-
-                output_temp = 0;
-                dp4a((const int32_t *)(inps + 3), (const int32_t *)&weight,
-                     output_temp);
-                out_ptr->w = T2int8<float>(output_temp * scale_out);
-            }
-        } else if (interp == RotateInterpolation::Nearest) {
-            int ix_nearest = static_cast<int>(hrint(ix));
-            int iy_nearest = static_cast<int>(hrint(iy));
-            float scale_out = scale_i / scale_o;
-
-            // assign nearest neighbor pixel value to output pixel
-            auto inp_ptr = input;
-            auto out_ptr = output + h * inp_sH + w * inp_sW;
-            for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
-                if (within_bounds_2d(iy_nearest, ix_nearest, height, width)) {
-                    const int8_4 &inp =
-                            inp_ptr[iy_nearest * inp_sH + ix_nearest * inp_sW];
-                    qmulf(inp, *out_ptr, scale_out);
-                } else {
-                    *out_ptr = 0;
-                }
-            }
+      // calculate bilinear weighted pixel value and set output pixel
+      auto inp_ptr = input;
+      auto out_ptr = output + h * inp_sH + w * inp_sW;
+      for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
+        if (within_bounds_2d(iy_nw, ix_nw, height, width)) {
+          const int8_4 &inp = inp_ptr[iy_nw * inp_sH + ix_nw * inp_sW];
+          inps[0].x = inp.x;
+          inps[1].x = inp.y;
+          inps[2].x = inp.z;
+          inps[3].x = inp.w;
         }
+        if (within_bounds_2d(iy_ne, ix_ne, height, width)) {
+          const int8_4 &inp = inp_ptr[iy_ne * inp_sH + ix_ne * inp_sW];
+          inps[0].y = inp.x;
+          inps[1].y = inp.y;
+          inps[2].y = inp.z;
+          inps[3].y = inp.w;
+        }
+        if (within_bounds_2d(iy_sw, ix_sw, height, width)) {
+          const int8_4 &inp = inp_ptr[iy_sw * inp_sH + ix_sw * inp_sW];
+          inps[0].z = inp.x;
+          inps[1].z = inp.y;
+          inps[2].z = inp.z;
+          inps[3].z = inp.w;
+        }
+        if (within_bounds_2d(iy_se, ix_se, height, width)) {
+          const int8_4 &inp = inp_ptr[iy_se * inp_sH + ix_se * inp_sW];
+          inps[0].w = inp.x;
+          inps[1].w = inp.y;
+          inps[2].w = inp.z;
+          inps[3].w = inp.w;
+        }
+        output_temp = 0;
+        dp4a((const int32_t *)inps, (const int32_t *)&weight, output_temp);
+        out_ptr->x = T2int8<float>(output_temp * scale_out);
+
+        output_temp = 0;
+        dp4a((const int32_t *)(inps + 1), (const int32_t *)&weight,
+             output_temp);
+        out_ptr->y = T2int8<float>(output_temp * scale_out);
+
+        output_temp = 0;
+        dp4a((const int32_t *)(inps + 2), (const int32_t *)&weight,
+             output_temp);
+        out_ptr->z = T2int8<float>(output_temp * scale_out);
+
+        output_temp = 0;
+        dp4a((const int32_t *)(inps + 3), (const int32_t *)&weight,
+             output_temp);
+        out_ptr->w = T2int8<float>(output_temp * scale_out);
+      }
+    } else if (interp == RotateInterpolation::Nearest) {
+      int ix_nearest = static_cast<int>(hrint(ix));
+      int iy_nearest = static_cast<int>(hrint(iy));
+      float scale_out = scale_i / scale_o;
+
+      // assign nearest neighbor pixel value to output pixel
+      auto inp_ptr = input;
+      auto out_ptr = output + h * inp_sH + w * inp_sW;
+      for (int c = 0; c < channel; ++c, inp_ptr += inp_sC, out_ptr += inp_sC) {
+        if (within_bounds_2d(iy_nearest, ix_nearest, height, width)) {
+          const int8_4 &inp =
+              inp_ptr[iy_nearest * inp_sH + ix_nearest * inp_sW];
+          qmulf(inp, *out_ptr, scale_out);
+        } else {
+          *out_ptr = 0;
+        }
+      }
     }
+  }
 }
 
 template <typename T>
@@ -754,11 +755,11 @@ template void rotate(__half *output, __half *input, __half *angle,
                      RotateInterpolation interp, cudaStream_t stream);
 
 template void rotate_int8(int8_4 *output, float scale_o, const int8_4 *input,
-                 float scale_i, const float *angle, const float *center,
-                 int *input_dims, RotateInterpolation interp,
-                 cudaStream_t stream);
+                          float scale_i, const float *angle,
+                          const float *center, int *input_dims,
+                          RotateInterpolation interp, cudaStream_t stream);
 
 template void rotate_int8(int8_4 *output, float scale_o, const int8_4 *input,
-                          float scale_i, const __half *angle, const __half *center,
-                          int *input_dims, RotateInterpolation interp,
-                          cudaStream_t stream);
+                          float scale_i, const __half *angle,
+                          const __half *center, int *input_dims,
+                          RotateInterpolation interp, cudaStream_t stream);
