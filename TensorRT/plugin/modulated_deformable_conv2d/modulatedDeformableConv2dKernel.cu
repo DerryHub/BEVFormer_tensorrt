@@ -547,8 +547,9 @@ __global__ void output_add_bias_kernel(__half *output, const __half *bias,
   }
 }
 
+template <typename T>
 __global__ void output_add_bias_kernel_int8(const int32_t *int32_iw,
-                                            float scale_iw, const float *bias,
+                                            float scale_iw, const T *bias,
                                             int8_t *output, float scale_o,
                                             size_t n, int hw_out, int hw4) {
   CUDA_1D_KERNEL_LOOP(index, n) {
@@ -558,6 +559,21 @@ __global__ void output_add_bias_kernel_int8(const int32_t *int32_iw,
     output[index] = T2int8<float>(
         (int32_iw[temp32_index] * scale_iw + bias[bias_index]) / scale_o);
   }
+}
+
+
+template <>
+__global__ void output_add_bias_kernel_int8(const int32_t *int32_iw,
+                                            float scale_iw, const __half *bias,
+                                            int8_t *output, float scale_o,
+                                            size_t n, int hw_out, int hw4) {
+    CUDA_1D_KERNEL_LOOP(index, n) {
+        const int bias_index = index / hw_out;
+        const int temp32_index = bias_index * hw4 + index % hw_out;
+
+        output[index] = T2int8<float>(
+                (int32_iw[temp32_index] * scale_iw + __half2float(bias[bias_index])) / scale_o);
+    }
 }
 
 __global__ void output_wo_bias_kernel_int8(const int32_t *int32_iw,
@@ -859,9 +875,10 @@ void ModulatedDeformConvForwardCUDAKernel(
   }
 }
 
+template <typename T>
 void ModulatedDeformConvForwardCUDAKernel_int8(
     const int8_4 *input, const float &scale_i, const int8_4 *weight,
-    const float &scale_w, const float *bias, const int8_t *offset,
+    const float &scale_w, const T *bias, const int8_t *offset,
     const float &scale_off, const int8_t *mask, const float &scale_mask,
     int8_t *output, const float &scale_o, void *workspace, int batch,
     int channels, int height, int width, int channels_out, int kernel_w,
@@ -924,8 +941,8 @@ void ModulatedDeformConvForwardCUDAKernel_int8(
                           (int8_t *)weight_start, k, &beta, int32_temp, n);
 
       if (with_bias) {
-        const float *bias_start = bias + g * m;
-        output_add_bias_kernel_int8<<<GET_BLOCKS(output_kernel_count),
+        const T *bias_start = bias + g * m;
+        output_add_bias_kernel_int8<T><<<GET_BLOCKS(output_kernel_count),
                                       THREADS_PER_BLOCK, 0, stream>>>(
             int32_temp, scale_iw, bias_start, out_buffer_start, scale_o,
             output_kernel_count, hw_out, hw4);
@@ -965,3 +982,23 @@ template void ModulatedDeformConvForwardCUDAKernel<__half2>(
     int pad_w, int pad_h, int dilation_w, int dilation_h, int group,
     int deformable_group, int im2col_step, cublasHandle_t cublas_handle,
     cudaStream_t stream);
+
+template void ModulatedDeformConvForwardCUDAKernel_int8<float>(
+        const int8_4 *input, const float &scale_i, const int8_4 *weight,
+        const float &scale_w, const float *bias, const int8_t *offset,
+        const float &scale_off, const int8_t *mask, const float &scale_mask,
+        int8_t *output, const float &scale_o, void *workspace, int batch,
+        int channels, int height, int width, int channels_out, int kernel_w,
+        int kernel_h, int stride_w, int stride_h, int pad_w, int pad_h,
+        int dilation_w, int dilation_h, int group, int deformable_group,
+        int im2col_step, cublasHandle_t cublas_handle, cudaStream_t stream);
+
+template void ModulatedDeformConvForwardCUDAKernel_int8<__half>(
+        const int8_4 *input, const float &scale_i, const int8_4 *weight,
+        const float &scale_w, const __half *bias, const int8_t *offset,
+        const float &scale_off, const int8_t *mask, const float &scale_mask,
+        int8_t *output, const float &scale_o, void *workspace, int batch,
+        int channels, int height, int width, int channels_out, int kernel_w,
+        int kernel_h, int stride_w, int stride_h, int pad_w, int pad_h,
+        int dilation_w, int dilation_h, int group, int deformable_group,
+        int im2col_step, cublasHandle_t cublas_handle, cudaStream_t stream);

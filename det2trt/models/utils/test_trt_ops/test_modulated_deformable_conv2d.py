@@ -96,6 +96,9 @@ class ModulatedDeformableConv2dTestCase(BaseTestCase, unittest.TestCase):
     def test_int8(self):
         self.int8_case(1.5)
 
+    def test_int8_fp16(self):
+        self.int8_case(1.5)
+
 
 class ModulatedDeformableConv2dTestCase2(BaseTestCase, unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -179,4 +182,7 @@ class ModulatedDeformableConv2dTestCase2(BaseTestCase, unittest.TestCase):
         self.fp16_case(0.05)
 
     def test_int8(self):
+        self.int8_case(1.5)
+
+    def test_int8_fp16(self):
         self.int8_case(1.5)
