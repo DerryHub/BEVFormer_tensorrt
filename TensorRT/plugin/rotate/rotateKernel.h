@@ -19,8 +19,9 @@ void rotate_h2(__half2 *output, __half2 *input, __half *angle, __half *center,
                int *input_dims, RotateInterpolation interp,
                cudaStream_t stream);
 
+template <typename T>
 void rotate_int8(int8_4 *output, float scale_o, const int8_4 *input,
-                 float scale_i, const float *angle, const float *center,
+                 float scale_i, const T *angle, const T *center,
                  int *input_dims, RotateInterpolation interp,
                  cudaStream_t stream);
 
