@@ -17,9 +17,10 @@ void ModulatedDeformConvForwardCUDAKernel(
     int dilation_h, int group, int deformable_group, int im2col_step,
     cublasHandle_t cublas_handle, cudaStream_t stream);
 
+template <typename T>
 void ModulatedDeformConvForwardCUDAKernel_int8(
     const int8_4 *input, const float &scale_i, const int8_4 *weight,
-    const float &scale_w, const float *bias, const int8_t *offset,
+    const float &scale_w, const T *bias, const int8_t *offset,
     const float &scale_off, const int8_t *mask, const float &scale_mask,
     int8_t *output, const float &scale_o, void *workspace, int batch,
     int channels, int height, int width, int channels_out, int kernel_w,
