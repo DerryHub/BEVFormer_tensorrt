@@ -3,7 +3,7 @@ import numba
 import numpy as np
 import torch
 
-from third_party.bevformer.ops.iou3d.iou3d_utils import nms_gpu, nms_normal_gpu
+from third_party.bev_mmdet3d.ops.iou3d.iou3d_utils import nms_gpu, nms_normal_gpu
 
 
 def box3d_multiclass_nms(

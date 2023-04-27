@@ -2,7 +2,7 @@
 import numba
 import numpy as np
 
-from third_party.bevformer.core.bbox import box_np_ops
+from third_party.bev_mmdet3d.core.bbox import box_np_ops
 
 
 @numba.njit

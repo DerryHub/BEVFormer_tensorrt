@@ -2,7 +2,7 @@
 import mmcv
 import numpy as np
 
-from third_party.bevformer.core.points import BasePoints, get_points_type
+from third_party.bev_mmdet3d.core.points import BasePoints, get_points_type
 from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import LoadAnnotations, LoadImageFromFile
 

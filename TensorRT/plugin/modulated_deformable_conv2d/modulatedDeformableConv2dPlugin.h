@@ -66,10 +66,9 @@ public:
 
   char const *getPluginNamespace() const noexcept override;
 
-  nvinfer1::DataType getOutputDataType(int32_t index,
-                                       nvinfer1::DataType const *inputTypes,
-                                       int32_t nbInputs) const
-      noexcept override;
+  nvinfer1::DataType
+  getOutputDataType(int32_t index, nvinfer1::DataType const *inputTypes,
+                    int32_t nbInputs) const noexcept override;
 
   void attachToContext(cudnnContext *cudnn, cublasContext *cublas,
                        nvinfer1::IGpuAllocator *allocator) noexcept override;

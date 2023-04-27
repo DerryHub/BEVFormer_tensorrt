@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from mmdet.models.utils.builder import TRANSFORMER
 from mmcv.cnn.bricks.transformer import build_transformer_layer_sequence
-from third_party.bevformer import PerceptionTransformer
+from third_party.bev_mmdet3d import PerceptionTransformer
 from ..utils import rotate, LINEAR_LAYERS
 from ..functions import rotate as rotate_trt, rotate2 as rotate_trt2
 

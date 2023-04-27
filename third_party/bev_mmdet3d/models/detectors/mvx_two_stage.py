@@ -10,7 +10,7 @@ from torch.nn import functional as F
 from ...core.bbox import Box3DMode, Coord3DMode, bbox3d2result
 from ...core.visualizer import show_result
 from ...core.post_processing import merge_aug_bboxes_3d
-from third_party.bevformer.ops.voxel import Voxelization
+from third_party.bev_mmdet3d.ops.voxel import Voxelization
 from mmdet.core import multi_apply
 from mmdet.models import DETECTORS
 from .. import builder

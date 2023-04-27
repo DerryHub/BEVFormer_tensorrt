@@ -2,8 +2,8 @@
 import numpy as np
 import torch
 
-from third_party.bevformer.core.points import BasePoints
-from third_party.bevformer.ops.roiaware_pool3d import points_in_boxes_gpu
+from third_party.bev_mmdet3d.core.points import BasePoints
+from third_party.bev_mmdet3d.ops.roiaware_pool3d import points_in_boxes_gpu
 from .base_box3d import BaseInstance3DBoxes
 from .utils import limit_period, rotation_3d_in_axis
 

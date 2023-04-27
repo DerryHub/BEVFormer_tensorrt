@@ -16,8 +16,8 @@ import sys
 
 sys.path.append(".")
 
-from third_party.bevformer.core.bbox.box_np_ops import points_cam2img
-from third_party.bevformer.datasets import NuScenesDataset
+from third_party.bev_mmdet3d.core.bbox.box_np_ops import points_cam2img
+from third_party.bev_mmdet3d.datasets import NuScenesDataset
 
 nus_categories = (
     "car",

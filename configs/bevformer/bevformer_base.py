@@ -1,6 +1,6 @@
 _base_ = ["../datasets/custom_nus-3d.py", "../_base_/default_runtime.py"]
 
-plugin = ["det2trt", "third_party.bevformer"]
+plugin = ["det2trt", "third_party.bev_mmdet3d"]
 
 # If point cloud range is changed, the models should also change their point
 # cloud range accordingly

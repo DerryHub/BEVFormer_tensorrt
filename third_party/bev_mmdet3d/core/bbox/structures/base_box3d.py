@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from abc import abstractmethod
 
-from third_party.bevformer.ops.iou3d import iou3d_cuda
+from third_party.bev_mmdet3d.ops.iou3d import iou3d_cuda
 from .utils import limit_period, xywhr2xyxyr
 
 

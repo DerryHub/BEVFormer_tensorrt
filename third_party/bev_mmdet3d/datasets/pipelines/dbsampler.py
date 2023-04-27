@@ -4,7 +4,7 @@ import mmcv
 import numpy as np
 import os
 
-from third_party.bevformer.core.bbox import box_np_ops
+from third_party.bev_mmdet3d.core.bbox import box_np_ops
 from . import data_augment_utils
 from mmdet.datasets import PIPELINES
 from ..builder import OBJECTSAMPLERS

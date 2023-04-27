@@ -3,7 +3,7 @@ import copy
 import warnings
 import numpy as np
 from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER_SEQUENCE, TRANSFORMER_LAYER
-from third_party.bevformer import BEVFormerEncoder, BEVFormerLayer
+from third_party.bev_mmdet3d import BEVFormerEncoder, BEVFormerLayer
 
 
 @TRANSFORMER_LAYER_SEQUENCE.register_module()

@@ -63,8 +63,8 @@ void MultiScaleDeformableAttnPlugin::terminate() noexcept {}
 
 size_t MultiScaleDeformableAttnPlugin::getWorkspaceSize(
     const nvinfer1::PluginTensorDesc *inputs, int32_t nbInputs,
-    const nvinfer1::PluginTensorDesc *outputs, int32_t nbOutputs) const
-    noexcept {
+    const nvinfer1::PluginTensorDesc *outputs,
+    int32_t nbOutputs) const noexcept {
   return 0;
 }
 
@@ -215,14 +215,14 @@ void MultiScaleDeformableAttnPlugin::setPluginNamespace(
   mPluginNamespace = pluginNamespace;
 }
 
-char const *MultiScaleDeformableAttnPlugin::getPluginNamespace() const
-    noexcept {
+char const *
+MultiScaleDeformableAttnPlugin::getPluginNamespace() const noexcept {
   return mPluginNamespace.c_str();
 }
 
 DataType MultiScaleDeformableAttnPlugin::getOutputDataType(
-    int32_t index, const nvinfer1::DataType *inputTypes, int32_t nbInputs) const
-    noexcept {
+    int32_t index, const nvinfer1::DataType *inputTypes,
+    int32_t nbInputs) const noexcept {
   PLUGIN_ASSERT(inputTypes && nbInputs > 0 && index == 0)
   return inputTypes[0];
 }
@@ -251,13 +251,13 @@ MultiScaleDeformableAttnPluginCreator::MultiScaleDeformableAttnPluginCreator() {
   mFC.fields = mPluginAttributes.data();
 }
 
-char const *MultiScaleDeformableAttnPluginCreator::getPluginName() const
-    noexcept {
+char const *
+MultiScaleDeformableAttnPluginCreator::getPluginName() const noexcept {
   return MSDA_PLUGIN_NAME;
 }
 
-char const *MultiScaleDeformableAttnPluginCreator::getPluginVersion() const
-    noexcept {
+char const *
+MultiScaleDeformableAttnPluginCreator::getPluginVersion() const noexcept {
   return MSDA_PLUGIN_VERSION;
 }
 
@@ -300,13 +300,13 @@ MultiScaleDeformableAttnPluginCreator2::
   mFC.fields = mPluginAttributes.data();
 }
 
-char const *MultiScaleDeformableAttnPluginCreator2::getPluginName() const
-    noexcept {
+char const *
+MultiScaleDeformableAttnPluginCreator2::getPluginName() const noexcept {
   return MSDA_PLUGIN_NAME2;
 }
 
-char const *MultiScaleDeformableAttnPluginCreator2::getPluginVersion() const
-    noexcept {
+char const *
+MultiScaleDeformableAttnPluginCreator2::getPluginVersion() const noexcept {
   return MSDA_PLUGIN_VERSION;
 }
 

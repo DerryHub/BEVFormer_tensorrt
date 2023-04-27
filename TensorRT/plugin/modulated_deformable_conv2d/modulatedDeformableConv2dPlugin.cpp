@@ -72,8 +72,8 @@ void ModulatedDeformableConv2dPlugin::terminate() noexcept {}
 
 size_t ModulatedDeformableConv2dPlugin::getWorkspaceSize(
     const nvinfer1::PluginTensorDesc *inputs, int32_t nbInputs,
-    const nvinfer1::PluginTensorDesc *outputs, int32_t nbOutputs) const
-    noexcept {
+    const nvinfer1::PluginTensorDesc *outputs,
+    int32_t nbOutputs) const noexcept {
   size_t sizeof_dtype;
   switch (outputs[0].type) {
   case nvinfer1::DataType::kFLOAT:
@@ -257,8 +257,8 @@ char const *ModulatedDeformableConv2dPlugin::getPluginVersion() const noexcept {
 
 void ModulatedDeformableConv2dPlugin::destroy() noexcept { delete this; }
 
-nvinfer1::IPluginV2DynamicExt *ModulatedDeformableConv2dPlugin::clone() const
-    noexcept {
+nvinfer1::IPluginV2DynamicExt *
+ModulatedDeformableConv2dPlugin::clone() const noexcept {
   auto *plugin = new ModulatedDeformableConv2dPlugin(
       mStride, mPadding, mDilation, mDeformableGroup, mGroup, use_h2);
   plugin->setPluginNamespace(getPluginNamespace());
@@ -271,14 +271,14 @@ void ModulatedDeformableConv2dPlugin::setPluginNamespace(
   mPluginNamespace = pluginNamespace;
 }
 
-char const *ModulatedDeformableConv2dPlugin::getPluginNamespace() const
-    noexcept {
+char const *
+ModulatedDeformableConv2dPlugin::getPluginNamespace() const noexcept {
   return mPluginNamespace.c_str();
 }
 
 DataType ModulatedDeformableConv2dPlugin::getOutputDataType(
-    int32_t index, const nvinfer1::DataType *inputTypes, int32_t nbInputs) const
-    noexcept {
+    int32_t index, const nvinfer1::DataType *inputTypes,
+    int32_t nbInputs) const noexcept {
   PLUGIN_ASSERT(inputTypes && nbInputs > 0 && index == 0)
   return inputTypes[0];
 }
@@ -348,13 +348,13 @@ ModulatedDeformableConv2dPluginCreator::
   mFC.fields = mPluginAttributes.data();
 }
 
-const char *ModulatedDeformableConv2dPluginCreator::getPluginName() const
-    noexcept {
+const char *
+ModulatedDeformableConv2dPluginCreator::getPluginName() const noexcept {
   return MDC_PLUGIN_NAME;
 }
 
-const char *ModulatedDeformableConv2dPluginCreator::getPluginVersion() const
-    noexcept {
+const char *
+ModulatedDeformableConv2dPluginCreator::getPluginVersion() const noexcept {
   return MDC_PLUGIN_VERSION;
 }
 
@@ -436,13 +436,13 @@ ModulatedDeformableConv2dPluginCreator2::
   mFC.fields = mPluginAttributes.data();
 }
 
-const char *ModulatedDeformableConv2dPluginCreator2::getPluginName() const
-    noexcept {
+const char *
+ModulatedDeformableConv2dPluginCreator2::getPluginName() const noexcept {
   return MDC_PLUGIN_NAME2;
 }
 
-const char *ModulatedDeformableConv2dPluginCreator2::getPluginVersion() const
-    noexcept {
+const char *
+ModulatedDeformableConv2dPluginCreator2::getPluginVersion() const noexcept {
   return MDC_PLUGIN_VERSION;
 }
 

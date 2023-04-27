@@ -9,8 +9,8 @@ import sys
 
 sys.path.append(".")
 from det2trt.quantization import calibrator_qdq
-from third_party.bevformer.models.builder import build_model
-from third_party.bevformer.datasets.builder import build_dataloader, build_dataset
+from third_party.bev_mmdet3d.models.builder import build_model
+from third_party.bev_mmdet3d.datasets.builder import build_dataloader, build_dataset
 
 
 def parse_args():

@@ -250,7 +250,7 @@ sh samples/test_trt_ops.sh
 ##### Build and Install Part of Ops in MMDetection3D
 
 ```shell
-cd ${PROJECT_DIR}/third_party/bevformer
+cd ${PROJECT_DIR}/third_party/bev_mmdet3d
 python setup.py build develop
 ```
 
