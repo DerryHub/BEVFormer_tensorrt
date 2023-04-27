@@ -2,7 +2,7 @@ import copy
 import torch
 import torch.nn as nn
 from mmdet.models import HEADS
-from third_party.bevformer import BEVFormerHead
+from third_party.bev_mmdet3d import BEVFormerHead
 from mmdet.models.utils.transformer import inverse_sigmoid
 from mmdet.core.bbox import build_bbox_coder
 from ..utils import LINEAR_LAYERS

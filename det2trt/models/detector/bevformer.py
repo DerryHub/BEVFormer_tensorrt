@@ -1,7 +1,7 @@
 import torch
 from mmdet.models import DETECTORS
-from third_party.bevformer import BEVFormer
-from third_party.bevformer.core.bbox import bbox3d2result
+from third_party.bev_mmdet3d import BEVFormer
+from third_party.bev_mmdet3d.core.bbox import bbox3d2result
 
 
 @DETECTORS.register_module()

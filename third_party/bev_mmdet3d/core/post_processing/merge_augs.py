@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 
-from third_party.bevformer.ops.iou3d.iou3d_utils import nms_gpu, nms_normal_gpu
+from third_party.bev_mmdet3d.ops.iou3d.iou3d_utils import nms_gpu, nms_normal_gpu
 from ..bbox import bbox3d2result, bbox3d_mapping_back, xywhr2xyxyr
 
 

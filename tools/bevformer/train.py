@@ -22,9 +22,9 @@ import sys
 
 sys.path.append(".")
 
-from third_party.bevformer import custom_train_model
-from third_party.bevformer.datasets.builder import build_dataset
-from third_party.bevformer.models.builder import build_model
+from third_party.bev_mmdet3d import custom_train_model
+from third_party.bev_mmdet3d.datasets.builder import build_dataset
+from third_party.bev_mmdet3d.models.builder import build_model
 
 
 def parse_args():

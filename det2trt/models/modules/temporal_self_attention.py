@@ -9,7 +9,7 @@ ext_module = ext_loader.load_ext(
     "_ext", ["ms_deform_attn_backward", "ms_deform_attn_forward"]
 )
 from ..utils import LINEAR_LAYERS, multi_scale_deformable_attn_pytorch
-from third_party.bevformer import (
+from third_party.bev_mmdet3d import (
     TemporalSelfAttention,
     MultiScaleDeformableAttnFunction_fp32,
 )

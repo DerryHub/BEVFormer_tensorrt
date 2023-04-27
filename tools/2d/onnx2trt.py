@@ -11,7 +11,7 @@ sys.path.append(".")
 from det2trt.convert import build_engine
 
 from det2trt.quantization import get_calibrator
-from third_party.bevformer.datasets.builder import build_dataloader, build_dataset
+from third_party.bev_mmdet3d.datasets.builder import build_dataloader, build_dataset
 
 
 def parse_args():

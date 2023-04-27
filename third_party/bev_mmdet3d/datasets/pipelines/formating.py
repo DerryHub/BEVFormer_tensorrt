@@ -2,8 +2,8 @@
 import numpy as np
 from mmcv.parallel import DataContainer as DC
 
-from third_party.bevformer.core.bbox import BaseInstance3DBoxes
-from third_party.bevformer.core.points import BasePoints
+from third_party.bev_mmdet3d.core.bbox import BaseInstance3DBoxes
+from third_party.bev_mmdet3d.core.points import BasePoints
 from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import to_tensor
 

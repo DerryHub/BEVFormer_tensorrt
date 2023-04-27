@@ -8,7 +8,7 @@ from mmcv.runner import force_fp32
 
 from mmcv.utils import ext_loader
 from ..utils import LINEAR_LAYERS, multi_scale_deformable_attn_pytorch
-from third_party.bevformer import (
+from third_party.bev_mmdet3d import (
     SpatialCrossAttention,
     MSDeformableAttention3D,
     MultiScaleDeformableAttnFunction_fp32,
