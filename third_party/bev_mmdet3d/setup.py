@@ -37,11 +37,19 @@ def make_cuda_ext(
 
 if __name__ == "__main__":
     setup(
-        name="bev_mmdet3d_",
+        name="bev_mmdet3d",
         version="0.1",
         packages=find_packages(),
         include_package_data=True,
         ext_modules=[
+            make_cuda_ext(
+                name='bev_pool_v2_ext',
+                module='ops.bev_pool_v2',
+                sources=[
+                    'src/bev_pool.cpp',
+                    'src/bev_pool_cuda.cu',
+                ],
+            ),
             make_cuda_ext(
                 name="iou3d_cuda",
                 module="ops.iou3d",

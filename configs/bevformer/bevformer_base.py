@@ -203,7 +203,7 @@ model = dict(
     ),
 )
 
-dataset_type = "CustomNuScenesDataset"
+dataset_type = "BEVFormerNuScenesDataset"
 data_root = "data/nuscenes/"
 file_client_args = dict(backend="disk")
 
