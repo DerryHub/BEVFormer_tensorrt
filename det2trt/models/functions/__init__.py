@@ -8,6 +8,7 @@ from .modulated_deformable_conv2d import (
     modulated_deformable_conv2d2,
 )
 from .rotate import rotate, rotate2
+from .inverse import inverse
 from ..utils.register import TRT_FUNCTIONS
 
 
@@ -22,3 +23,5 @@ TRT_FUNCTIONS.register_module(module=modulated_deformable_conv2d2)
 
 TRT_FUNCTIONS.register_module(module=rotate)
 TRT_FUNCTIONS.register_module(module=rotate2)
+
+TRT_FUNCTIONS.register_module(module=inverse)

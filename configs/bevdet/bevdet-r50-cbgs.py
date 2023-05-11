@@ -38,8 +38,7 @@ data_config = {
         'CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT',
         'CAM_BACK', 'CAM_BACK_RIGHT'
     ],
-    'Ncams':
-    6,
+    'Ncams': 6,
     'input_size': (256, 704),
     'src_size': (900, 1600),
 
@@ -240,7 +239,7 @@ data = dict(
         type='CBGSDataset',
         dataset=dict(
         data_root=data_root,
-        ann_file=data_root + 'bevdetv2-nuscenes_infos_train.pkl',
+        ann_file=data_root + 'nuscenes_infos_temporal_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         test_mode=False,

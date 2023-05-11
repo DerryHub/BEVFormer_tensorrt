@@ -70,9 +70,9 @@ def main():
         img_inputs = data["img_inputs"][0]
         img_metas = data["img_metas"][0].data[0]
 
-        imgs, sensor2egos, ego2globals, intrins, post_rots, post_trans, bda = [item.cuda() for item in img_inputs]
+        image, sensor2egos, ego2globals, intrins, post_rots, post_trans, bda = [item.cuda() for item in img_inputs]
 
-        B, N, C, H, W = imgs.shape
+        B, N, C, H, W = image.shape
         sensor2egos = sensor2egos.view(B, N, 4, 4)
         ego2globals = ego2globals.view(B, N, 4, 4)
 
@@ -86,7 +86,7 @@ def main():
             torch.cuda.synchronize()
             t1 = time.time()
             out = model(
-                imgs, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
+                image, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
             )
             torch.cuda.synchronize()
             t2 = time.time()
@@ -97,7 +97,7 @@ def main():
 
         ts.append(t2 - t1)
 
-        for _ in range(len(imgs)):
+        for _ in range(len(image)):
             prog_bar.update()
 
     metric = dataset.evaluate(results)

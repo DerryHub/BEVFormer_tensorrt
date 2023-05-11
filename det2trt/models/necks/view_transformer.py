@@ -1,5 +1,6 @@
 import torch
 from mmdet.models import NECKS
+from ..functions import inverse
 
 from third_party.bev_mmdet3d import LSSViewTransformer
 from third_party.bev_mmdet3d.ops.bev_pool_v2.bev_pool import bev_pool_v2
@@ -31,6 +32,45 @@ class LSSViewTransformerTRT(LSSViewTransformer):
     """
     def __init__(self, *args, **kwargs):
         super(LSSViewTransformerTRT, self).__init__(*args, **kwargs)
+
+    def get_lidar_coor(self, sensor2ego, ego2global, cam2imgs, post_rots, post_trans,
+                       bda):
+        """Calculate the locations of the frustum points in the lidar
+        coordinate system.
+
+        Args:
+            rots (torch.Tensor): Rotation from camera coordinate system to
+                lidar coordinate system in shape (B, N_cams, 3, 3).
+            trans (torch.Tensor): Translation from camera coordinate system to
+                lidar coordinate system in shape (B, N_cams, 3).
+            cam2imgs (torch.Tensor): Camera intrinsic matrixes in shape
+                (B, N_cams, 3, 3).
+            post_rots (torch.Tensor): Rotation in camera coordinate system in
+                shape (B, N_cams, 3, 3). It is derived from the image view
+                augmentation.
+            post_trans (torch.Tensor): Translation in camera coordinate system
+                derived from image view augmentation in shape (B, N_cams, 3).
+
+        Returns:
+            torch.tensor: Point coordinates in shape
+                (B, N_cams, D, ownsample, 3)
+        """
+        B, N, _, _ = sensor2ego.shape
+
+        # post-transformation
+        # B x N x D x H x W x 3
+        points = self.frustum.to(sensor2ego) - post_trans.view(B, N, 1, 1, 1, 3)
+        points = inverse(post_rots).view(B, N, 1, 1, 1, 3, 3).matmul(points.unsqueeze(-1))
+
+        # cam_to_ego
+        points = torch.cat(
+            (points[..., :2, :] * points[..., 2:3, :], points[..., 2:3, :]), 5)
+        combine = sensor2ego[:,:,:3,:3].matmul(inverse(cam2imgs))
+        points = combine.view(B, N, 1, 1, 1, 3, 3).matmul(points).squeeze(-1)
+        points += sensor2ego[:,:,:3, 3].view(B, N, 1, 1, 1, 3)
+        points = bda.view(B, 1, 1, 1, 1, 3,
+                          3).matmul(points.unsqueeze(-1)).squeeze(-1)
+        return points
 
     def pre_compute_trt(self, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda):
         if self.initial_flag:
