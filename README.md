@@ -64,6 +64,21 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 | BEVFormer base  | NuScenes |     1      |   FP16    |              -              | NDS: 0.517<br/>mAP: 0.416 |  6.6 (x4.40)  | 172 (x0.10) | 3341 (x0.24) | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.516<br/>mAP: 0.414 |  7.7 (x5.13)  | 133 (x0.08) | 2691 (x0.19) | RTX 3090 |
 
+### BEVDet
+
+#### BEVDet PyTorch
+
+|      Model      |   Data   | Batch Size | NDS/mAP | FPS  | Size (MB) | Memory (MB) |   Device   |
+| :-------------: | :------: | :--------: | :-----: | :--: | :-------: | :---------: | :--------: |
+| BEVDet R50 CBGS | NuScenes |     1      |         |      |           |             | RTX 2080Ti |
+
+#### BEVDet TensorRT
+
+|      Model      |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |    FPS    | Size (MB) | Memory (MB) |   Device   |
+| :-------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-------: | :-------: | :---------: | :--------: |
+| BEVDet R50 CBGS | NuScenes |     1      |   FP32    |          -          | NDS: 0.395<br/>mAP: 0.309 | 36.8 (x1) | 245 (x1)  |  1051 (x1)  | RTX 2080Ti |
+| BEVDet R50 CBGS | NuScenes |     1      |   FP16    |          -          | NDS: 0.395<br/>mAP: 0.309 | 36.8 (x1) |  87 (x1)  |  1051 (x1)  | RTX 2080Ti |
+
 ### 2D Detection Models
 
 This project also supports common 2D object detection models in MMDetection with little modification. The following are deployment examples of YOLOx and CenterNet.

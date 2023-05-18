@@ -82,11 +82,14 @@ def main():
         sensor2keyegos = global2keyego @ ego2globals @ sensor2egos
         sensor2keyegos = sensor2keyegos
 
+        ranks_bev, ranks_depth, ranks_feat, order, coor = model.module.get_bev_pool_input(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
+        ranks_bev, ranks_depth, ranks_feat, order, coor = ranks_bev.float(), ranks_depth.float(), ranks_feat.float(), order.float(), coor.float()
+
         with torch.no_grad():
             torch.cuda.synchronize()
             t1 = time.time()
             out = model(
-                image, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
+                image, ranks_bev, ranks_depth, ranks_feat, order, coor
             )
             torch.cuda.synchronize()
             t2 = time.time()

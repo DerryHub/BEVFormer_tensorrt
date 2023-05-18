@@ -33,92 +33,65 @@ class LSSViewTransformerTRT(LSSViewTransformer):
     def __init__(self, *args, **kwargs):
         super(LSSViewTransformerTRT, self).__init__(*args, **kwargs)
 
-    def get_lidar_coor(self, sensor2ego, ego2global, cam2imgs, post_rots, post_trans,
-                       bda):
-        """Calculate the locations of the frustum points in the lidar
-        coordinate system.
+    def voxel_pooling_prepare_v2(self, coor):
+        """Data preparation for voxel pooling.
 
         Args:
-            rots (torch.Tensor): Rotation from camera coordinate system to
-                lidar coordinate system in shape (B, N_cams, 3, 3).
-            trans (torch.Tensor): Translation from camera coordinate system to
-                lidar coordinate system in shape (B, N_cams, 3).
-            cam2imgs (torch.Tensor): Camera intrinsic matrixes in shape
-                (B, N_cams, 3, 3).
-            post_rots (torch.Tensor): Rotation in camera coordinate system in
-                shape (B, N_cams, 3, 3). It is derived from the image view
-                augmentation.
-            post_trans (torch.Tensor): Translation in camera coordinate system
-                derived from image view augmentation in shape (B, N_cams, 3).
+            coor (torch.tensor): Coordinate of points in the lidar space in
+                shape (B, N, D, H, W, 3).
 
         Returns:
-            torch.tensor: Point coordinates in shape
-                (B, N_cams, D, ownsample, 3)
+            tuple[torch.tensor]: Rank of the voxel that a point is belong to
+                in shape (N_Points); Reserved index of points in the depth
+                space in shape (N_Points). Reserved index of points in the
+                feature space in shape (N_Points).
         """
-        B, N, _, _ = sensor2ego.shape
+        B, N, D, H, W, _ = coor.shape
+        num_points = B * N * D * H * W
+        # record the index of selected points for acceleration purpose
+        ranks_depth = torch.arange(0, num_points, dtype=torch.int, device=coor.device)
+        ranks_feat = torch.arange(
+            0, num_points // D, dtype=torch.int, device=coor.device)
+        ranks_feat = ranks_feat.reshape(B, N, 1, H, W)
+        ranks_feat = ranks_feat.expand(B, N, D, H, W).flatten()
+        # convert coordinate into the voxel space
+        coor = ((coor - self.grid_lower_bound.to(coor)) /
+                self.grid_interval.to(coor))
+        coor = coor.long().view(num_points, 3)
+        batch_idx = torch.arange(0, B).reshape(B, 1). \
+            expand(B, num_points // B).reshape(num_points, 1).to(coor)
+        coor = torch.cat((coor, batch_idx), 1)
 
-        # post-transformation
-        # B x N x D x H x W x 3
-        points = self.frustum.to(sensor2ego) - post_trans.view(B, N, 1, 1, 1, 3)
-        points = inverse(post_rots).view(B, N, 1, 1, 1, 3, 3).matmul(points.unsqueeze(-1))
+        # filter out points that are outside box
+        # kept = (coor[:, 0] >= 0) & (coor[:, 0] < self.grid_size[0]) & \
+        #        (coor[:, 1] >= 0) & (coor[:, 1] < self.grid_size[1]) & \
+        #        (coor[:, 2] >= 0) & (coor[:, 2] < self.grid_size[2])
+        # if len(kept) == 0:
+        #     return None, None, None, None, None
+        # import pdb; pdb.set_trace()
+        # coor, ranks_depth, ranks_feat = \
+        #     coor[kept], ranks_depth[kept], ranks_feat[kept]
+        # get tensors from the same voxel next to each other
+        ranks_bev = coor[:, 3] * (
+            self.grid_size[2] * self.grid_size[1] * self.grid_size[0])
+        ranks_bev += coor[:, 2] * (self.grid_size[1] * self.grid_size[0])
+        ranks_bev += coor[:, 1] * self.grid_size[0] + coor[:, 0]
+        order = ranks_bev.argsort()
+        return ranks_bev.int().contiguous(), ranks_depth.int().contiguous(
+        ), ranks_feat.int().contiguous(), order, coor
 
-        # cam_to_ego
-        points = torch.cat(
-            (points[..., :2, :] * points[..., 2:3, :], points[..., 2:3, :]), 5)
-        combine = sensor2ego[:,:,:3,:3].matmul(inverse(cam2imgs))
-        points = combine.view(B, N, 1, 1, 1, 3, 3).matmul(points).squeeze(-1)
-        points += sensor2ego[:,:,:3, 3].view(B, N, 1, 1, 1, 3)
-        points = bda.view(B, 1, 1, 1, 1, 3,
-                          3).matmul(points.unsqueeze(-1)).squeeze(-1)
-        return points
+        ranks_bev, ranks_depth, ranks_feat = \
+            ranks_bev[order], ranks_depth[order], ranks_feat[order]
 
-    def pre_compute_trt(self, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda):
-        if self.initial_flag:
-            coor = self.get_lidar_coor(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
-            self.init_acceleration_v2(coor)
-            self.initial_flag = False
-
-    def view_transform_trt(self, depth, tran_feat, x, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda):
-        if self.accelerate:
-            self.pre_compute_trt(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
-        B, N, C, H, W = x.shape
-
-        if self.accelerate:
-            feat = tran_feat.view(B, N, self.out_channels, H, W)
-            feat = feat.permute(0, 1, 3, 4, 2)
-            depth = depth.view(B, N, self.D, H, W)
-            bev_feat_shape = (depth.shape[0], int(self.grid_size[2]),
-                              int(self.grid_size[1]), int(self.grid_size[0]),
-                              feat.shape[-1])  # (B, Z, Y, X, C)
-            bev_feat = bev_pool_v2(depth, feat, self.ranks_depth,
-                                   self.ranks_feat, self.ranks_bev,
-                                   bev_feat_shape, self.interval_starts,
-                                   self.interval_lengths)
-
-            bev_feat = bev_feat.squeeze(2)
-        else:
-            coor = self.get_lidar_coor(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
-            bev_feat = self.voxel_pooling_v2(
-                coor, depth.view(B, N, self.D, H, W),
-                tran_feat.view(B, N, self.out_channels, H, W))
-        return bev_feat, depth
-
-    def forward_trt(self, feat, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda):
-        """Transform image-view feature into bird-eye-view feature.
-
-        Args:
-            inputs (list(torch.tensor)): of (image-view feature, rots, trans,
-                intrins, post_rots, post_trans)
-
-        Returns:
-            torch.tensor: Bird-eye-view feature in shape (B, C, H_BEV, W_BEV)
-        """
-        B, N, C, H, W = feat.shape
-        x = feat.view(B * N, C, H, W)
-        x = self.depth_net(x)
-
-        depth_digit = x[:, :self.D, ...]
-        tran_feat = x[:, self.D:self.D + self.out_channels, ...]
-        depth = depth_digit.softmax(dim=1)
-
-        return self.view_transform_trt(depth, tran_feat, feat, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
+        kept = torch.ones(
+            ranks_bev.shape[0], device=ranks_bev.device, dtype=torch.bool)
+        kept[1:] = ranks_bev[1:] != ranks_bev[:-1]
+        interval_starts = torch.where(kept)[0].int()
+        if len(interval_starts) == 0:
+            return None, None, None, None, None
+        interval_lengths = torch.zeros_like(interval_starts)
+        interval_lengths[:-1] = interval_starts[1:] - interval_starts[:-1]
+        interval_lengths[-1] = ranks_bev.shape[0] - interval_starts[-1]
+        return ranks_bev.int().contiguous(), ranks_depth.int().contiguous(
+        ), ranks_feat.int().contiguous(), interval_starts.int().contiguous(
+        ), interval_lengths.int().contiguous()

@@ -2,7 +2,7 @@
 // Created by Derry Lin on 2023/05/11.
 //
 
-#include "inverse.h"
+#include "inversePlugin.h"
 #include "inverseKernel.h"
 #include "checkMacrosPlugin.h"
 #include "serialize.h"

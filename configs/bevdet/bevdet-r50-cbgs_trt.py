@@ -32,12 +32,18 @@ default_shapes = dict(
 
 input_shapes = dict(
     image=["batch_size", "cameras", 3, "img_hw[0]", "img_hw[1]"],
-    sensor2keyegos=["batch_size", "cameras", 4, 4],
-    ego2globals=["batch_size", "cameras", 4, 4],
-    intrins=["batch_size", "cameras", 3, 3],
-    post_rots=["batch_size", "cameras", 3, 3],
-    post_trans=["batch_size", "cameras", 3],
-    bda=["batch_size", 3, 3]
+    ranks_bev=[249216],
+    ranks_depth=[249216],
+    ranks_feat=[249216],
+    order=[249216],
+    coor=[249216, 4]
+    # ranks_bev, ranks_depth, ranks_feat, order, coor
+    # sensor2keyegos=["batch_size", "cameras", 4, 4],
+    # ego2globals=["batch_size", "cameras", 4, 4],
+    # intrins=["batch_size", "cameras", 3, 3],
+    # post_rots=["batch_size", "cameras", 3, 3],
+    # post_trans=["batch_size", "cameras", 3],
+    # bda=["batch_size", 3, 3]
 )
 
 output_shapes = dict(
