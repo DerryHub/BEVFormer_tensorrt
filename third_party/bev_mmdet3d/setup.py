@@ -37,7 +37,7 @@ def make_cuda_ext(
 
 if __name__ == "__main__":
     setup(
-        name="bev_mmdet3d_",
+        name="bev_mmdet3d",
         version="0.1",
         packages=find_packages(),
         include_package_data=True,
