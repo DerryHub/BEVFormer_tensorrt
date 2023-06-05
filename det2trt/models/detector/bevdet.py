@@ -16,23 +16,8 @@ class BEVDetTRT(BEVDet):
         ranks_bev, ranks_depth, ranks_feat, order, coor = self.img_view_transformer.voxel_pooling_prepare_v2(coor)
         return ranks_bev, ranks_depth, ranks_feat, order, coor
 
-    def forward_trt(self, image, ranks_bev, ranks_depth, ranks_feat, order, coor):
-        ranks_bev, ranks_depth, ranks_feat, order, coor = ranks_bev.int(), ranks_depth.int(), ranks_feat.int(), order.long(), coor.long()
-
-        kept = (coor[:, 0] >= 0) & (coor[:, 0] < self.img_view_transformer.grid_size[0]) & \
-                   (coor[:, 1] >= 0) & (coor[:, 1] < self.img_view_transformer.grid_size[1]) & \
-               (coor[:, 2] >= 0) & (coor[:, 2] < self.img_view_transformer.grid_size[2])
-        kept = kept[order]
-
-        ranks_bev, ranks_depth, ranks_feat = ranks_bev[order], ranks_depth[order], ranks_feat[order]
-        ranks_bev, ranks_depth, ranks_feat = ranks_bev[kept].contiguous(), ranks_depth[kept].contiguous(), ranks_feat[kept].contiguous()
-
-        kept = torch.ones(ranks_bev.shape[0], device=ranks_bev.device, dtype=torch.int)
-        kept[1:] = (ranks_bev[1:] != ranks_bev[:-1]).int()
-        interval_starts = torch.where(kept)[0].int()
-        interval_lengths = torch.zeros_like(interval_starts)
-        interval_lengths[:-1] = interval_starts[1:] - interval_starts[:-1]
-        interval_lengths[-1] = ranks_bev.shape[0] - interval_starts[-1]
+    def forward_trt(self, image, ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths):
+        ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = ranks_bev.int(), ranks_depth.int(), ranks_feat.int(), interval_starts.long(), interval_lengths.long()
 
         x = self.img_backbone(image.flatten(0, 1))
         x = self.img_neck(x)

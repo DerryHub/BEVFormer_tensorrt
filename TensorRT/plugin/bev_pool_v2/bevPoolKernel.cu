@@ -1,4 +1,5 @@
 #include "bevPoolKernel.h"
+#include "cuda_helper.h"
 /*
   Function: pillar pooling
   Args:
@@ -56,6 +57,7 @@ void bev_pool_v2(int c, int n_intervals, const float* depth, const float* feat, 
             c, n_intervals, depth, feat, ranks_depth, ranks_feat,
             ranks_bev, interval_starts, interval_lengths, out
     );
+    cudaCheckError();
 }
 
 

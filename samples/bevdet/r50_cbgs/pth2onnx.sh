@@ -16,7 +16,7 @@ done
 
 echo "Running on the GPU: $gpu_id"
 
-CUDA_VISIBLE_DEVICES=$gpu_id python tools/pth2onnx.py \
+CUDA_VISIBLE_DEVICES=$gpu_id python tools/bevdet/pth2onnx.py \
 configs/bevdet/bevdet-r50-cbgs_trt.py \
 checkpoints/pytorch/bevdet-r50-cbgs.pth \
 --opset_version 13 \

@@ -1,3 +1,4 @@
+import torch
 from torch.autograd import Function
 from third_party.bev_mmdet3d.ops.bev_pool_v2 import bev_pool_v2_gpu
 
@@ -67,10 +68,10 @@ def bev_pool_v2(depth,  # N,D,H,W
                 out_width=128):
     return _bev_pool_v2(depth,  # N,D,H,W
                 feat,  # N,H,W,C
-                ranks_depth,
-                ranks_feat,
-                ranks_bev,
-                interval_starts,
-                interval_lengths,
+                ranks_depth.int(),
+                ranks_feat.int(),
+                ranks_bev.int(),
+                interval_starts.int(),
+                interval_lengths.int(),
                 out_height,
                 out_width)

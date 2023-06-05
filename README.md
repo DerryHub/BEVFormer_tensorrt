@@ -77,7 +77,7 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 |      Model      |   Data   | Batch Size | Float/Int | Quantization Method |          NDS/mAP          |    FPS    | Size (MB) | Memory (MB) |   Device   |
 | :-------------: | :------: | :--------: | :-------: | :-----------------: | :-----------------------: | :-------: | :-------: | :---------: | :--------: |
 | BEVDet R50 CBGS | NuScenes |     1      |   FP32    |          -          | NDS: 0.395<br/>mAP: 0.309 | 36.8 (x1) | 245 (x1)  |  1051 (x1)  | RTX 2080Ti |
-| BEVDet R50 CBGS | NuScenes |     1      |   FP16    |          -          | NDS: 0.395<br/>mAP: 0.309 | 36.8 (x1) |  87 (x1)  |  1051 (x1)  | RTX 2080Ti |
+| BEVDet R50 CBGS | NuScenes |     1      |   FP16    |          -          | NDS: 0.395<br/>mAP: 0.309 | 36.8 (x1) |  87 (x1)  |  814 (x1)   | RTX 2080Ti |
 
 ### 2D Detection Models
 

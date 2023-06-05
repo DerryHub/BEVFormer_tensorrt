@@ -63,6 +63,7 @@ def main():
     model.eval()
     model = MMDataParallel(model.cuda())
 
+    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = None, None, None, None, None
     ts = []
     results = []
     prog_bar = mmcv.ProgressBar(len(dataset))
@@ -82,14 +83,15 @@ def main():
         sensor2keyegos = global2keyego @ ego2globals @ sensor2egos
         sensor2keyegos = sensor2keyegos
 
-        ranks_bev, ranks_depth, ranks_feat, order, coor = model.module.get_bev_pool_input(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
-        ranks_bev, ranks_depth, ranks_feat, order, coor = ranks_bev.float(), ranks_depth.float(), ranks_feat.float(), order.float(), coor.float()
+        if ranks_bev is None:
+            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = model.module.get_bev_pool_input(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
+            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = ranks_bev.float(), ranks_depth.float(), ranks_feat.float(), interval_starts.float(), interval_lengths.float()
 
         with torch.no_grad():
             torch.cuda.synchronize()
             t1 = time.time()
             out = model(
-                image, ranks_bev, ranks_depth, ranks_feat, order, coor
+                image, ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths
             )
             torch.cuda.synchronize()
             t2 = time.time()
