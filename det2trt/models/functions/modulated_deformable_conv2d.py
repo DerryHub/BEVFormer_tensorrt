@@ -247,7 +247,6 @@ def modulated_deformable_conv2d(
         deform_groups,
     )
 
-
 def modulated_deformable_conv2d2(
     input,
     offset,

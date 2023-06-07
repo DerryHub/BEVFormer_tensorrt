@@ -31,6 +31,7 @@ class BEVDetTRT(BEVDet):
         depth = depth.contiguous()
         tran_feat = tran_feat.contiguous()
 
+        import pdb; pdb.set_trace()
         x = bev_pool_v2(depth, tran_feat,
                                ranks_depth, ranks_feat, ranks_bev,
                                interval_starts, interval_lengths)

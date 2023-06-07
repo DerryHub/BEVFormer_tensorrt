@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch.autograd import Function
 
@@ -19,7 +18,6 @@ class _Inverse(Function):
 
 
 _inverse = _Inverse.apply
-
 
 def inverse(inputs):
     return _inverse(inputs)

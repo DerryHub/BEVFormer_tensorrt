@@ -182,7 +182,6 @@ def multi_scale_deformable_attn(
         attention_weights,
     )
 
-
 def multi_scale_deformable_attn2(
     value, value_spatial_shapes, reference_points, sampling_offsets, attention_weights
 ):

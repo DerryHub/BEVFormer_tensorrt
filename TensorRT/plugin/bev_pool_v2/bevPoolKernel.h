@@ -6,13 +6,22 @@
 #define TENSORRT_OPS_BEVPOOLKERNEL_H
 
 #include <cuda_runtime.h>
+#include <cuda_fp16.h>
+#include "cuda_int8.h"
 
 
 // CUDA function declarations
-void bev_pool_v2(int c, int n_intervals, const float* depth, const float* feat,
+template <typename T>
+void bev_pool_v2(int c, int n_intervals, int num_points, const T* depth, const T* feat,
                  const int* ranks_depth, const int* ranks_feat, const int* ranks_bev,
-                 const int* interval_starts, const int* interval_lengths, float* out, cudaStream_t stream);
+                 const int* interval_starts, const int* interval_lengths, T* out, cudaStream_t stream);
 
-void bev_pool_v2_set_zero(int n_points, float* out);
+void bev_pool_v2_h2(int c, int n_intervals, int num_points, const __half* depth, const __half2* feat, const int* ranks_depth,
+                    const int* ranks_feat, const int* ranks_bev, const int* interval_starts, const int* interval_lengths, __half2* out,
+                    cudaStream_t stream);
+
+void bev_pool_v2_int8(int c, int n_intervals, int num_points, const int8_t* depth, const float &scale_d, const int8_4* feat, const float &scale_f, const int* ranks_depth,
+                    const int* ranks_feat, const int* ranks_bev, const int* interval_starts, const int* interval_lengths, int8_4* out, const float &scale_o,
+                    cudaStream_t stream);
 
 #endif //TENSORRT_OPS_BEVPOOLKERNEL_H

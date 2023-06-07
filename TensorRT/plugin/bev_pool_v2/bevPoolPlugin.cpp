@@ -11,20 +11,25 @@
 
 using trt_plugin::BEVPoolPlugin;
 using trt_plugin::BEVPoolPluginCreator;
+using trt_plugin::BEVPoolPluginCreator2;
 using namespace nvinfer1;
 using namespace nvinfer1::plugin;
 
 namespace {
 constexpr char const *I_PLUGIN_VERSION{"1"};
 constexpr char const *I_PLUGIN_NAME{"BEVPoolV2TRT"};
+constexpr char const *I_PLUGIN_NAME2{"BEVPoolV2TRT2"};
 } // namespace
 
 PluginFieldCollection BEVPoolPluginCreator::mFC{};
 std::vector<PluginField> BEVPoolPluginCreator::mPluginAttributes;
 
-BEVPoolPlugin::BEVPoolPlugin(int outWidth, int outHeight) : mOutWidth(outWidth), mOutHeight(outHeight) {}
+PluginFieldCollection BEVPoolPluginCreator2::mFC{};
+std::vector<PluginField> BEVPoolPluginCreator2::mPluginAttributes;
 
-BEVPoolPlugin::BEVPoolPlugin(const void *serialData, size_t serialLength) {
+BEVPoolPlugin::BEVPoolPlugin(int outWidth, int outHeight, bool use_h2) : mOutWidth(outWidth), mOutHeight(outHeight), use_h2(use_h2) {}
+
+BEVPoolPlugin::BEVPoolPlugin(const void *serialData, size_t serialLength, bool use_h2) : use_h2(use_h2) {
     deserialize_value(&serialData, &serialLength, &mOutWidth);
     deserialize_value(&serialData, &serialLength, &mOutHeight);
 }
@@ -66,17 +71,44 @@ int32_t BEVPoolPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
     nvinfer1::Dims out_dims = outputDesc[0].dims; //bhwc
     auto data_type = inputDesc[0].type;
     int num_points = out_dims.d[0]*out_dims.d[1]*out_dims.d[2]*out_dims.d[3];
+//    float time = 0;
+//    cudaEvent_t start, end;
+//    cudaEventCreate(&start);
+//    cudaEventCreate(&end);
+//    cudaEventRecord(start, stream);
     switch (data_type) {
         case nvinfer1::DataType::kFLOAT:
-            bev_pool_v2_set_zero(num_points, (float *)outputs[0]);
-            bev_pool_v2(feat_dims.d[3], interval_dims.d[0], (float *)inputs[0], (float *)inputs[1],
+            bev_pool_v2(feat_dims.d[3], interval_dims.d[0], num_points, (float *)inputs[0], (float *)inputs[1],
                         (int *)inputs[2], (int *)inputs[3], (int *)inputs[4], (int *)inputs[5],(int *)inputs[6], (float *)outputs[0],
                         stream);
+            break;
+        case nvinfer1::DataType::kHALF:
+            if (use_h2) {
+                bev_pool_v2_h2(feat_dims.d[3], interval_dims.d[0], num_points, (__half *)inputs[0], (__half2 *)inputs[1],
+                               (int *)inputs[2], (int *)inputs[3], (int *)inputs[4], (int *)inputs[5],(int *)inputs[6], (__half2 *)outputs[0],
+                               stream);
+            } else {
+                bev_pool_v2(feat_dims.d[3], interval_dims.d[0], num_points, (__half *) inputs[0], (__half *) inputs[1],
+                            (int *) inputs[2], (int *) inputs[3], (int *) inputs[4], (int *) inputs[5],
+                            (int *) inputs[6], (__half *) outputs[0],
+                            stream);
+            }
+            break;
+        case nvinfer1::DataType::kINT8:
+            bev_pool_v2_int8(feat_dims.d[3], interval_dims.d[0], num_points, (int8_t *)inputs[0], inputDesc[0].scale, (int8_4 *)inputs[1], inputDesc[1].scale,
+                             (int *)inputs[2], (int *)inputs[3], (int *)inputs[4], (int *)inputs[5],(int *)inputs[6], (int8_4 *)outputs[0], outputDesc[0].scale,
+                             stream);
             break;
         default:
             return 1;
     }
-
+//    cudaEventRecord(end, stream);
+//    cudaEventSynchronize(start);
+//    cudaEventSynchronize(end);
+//    cudaEventElapsedTime(&time, start, end);
+//    cudaEventDestroy(start);
+//    cudaEventDestroy(end);
+//    printf("\nCPP TIME: %f ms\n", time);
   return 0;
 }
 
@@ -92,17 +124,21 @@ void BEVPoolPlugin::serialize(void *buffer) const noexcept {
 bool BEVPoolPlugin::supportsFormatCombination(
     int32_t pos, const nvinfer1::PluginTensorDesc *inOut, int32_t nbInputs,
     int32_t nbOutputs) noexcept {
-    if (pos == 0 || pos==1 || pos == 7) {
-        return (inOut[pos].type == nvinfer1::DataType::kFLOAT &&
+    if (pos == 0) {
+        return ((inOut[pos].type == nvinfer1::DataType::kFLOAT || inOut[pos].type == nvinfer1::DataType::kHALF || (inOut[pos].type == nvinfer1::DataType::kINT8 && use_int8)) &&
                 inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
-    } else {
+    } else if (pos==1 || pos == 7) {
+        return inOut[pos].type == inOut[0].type &&
+               inOut[pos].format == inOut[0].format;
+    }
+    else {
         return (inOut[pos].type == nvinfer1::DataType::kINT32 &&
                 inOut[pos].format == nvinfer1::TensorFormat::kLINEAR);
     }
 }
 
 char const *BEVPoolPlugin::getPluginType() const noexcept {
-  return I_PLUGIN_NAME;
+  return use_h2 ? I_PLUGIN_NAME2 : I_PLUGIN_NAME;
 }
 
 char const *BEVPoolPlugin::getPluginVersion() const noexcept {
@@ -113,7 +149,7 @@ void BEVPoolPlugin::destroy() noexcept { delete this; }
 
 IPluginV2DynamicExt *BEVPoolPlugin::clone() const noexcept {
   try {
-    auto *plugin = new BEVPoolPlugin(mOutWidth, mOutHeight);
+    auto *plugin = new BEVPoolPlugin(mOutWidth, mOutHeight, use_h2);
     plugin->setPluginNamespace(mPluginNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -151,6 +187,12 @@ void BEVPoolPlugin::configurePlugin(const nvinfer1::DynamicPluginTensorDesc *in,
                                    int32_t nbOutputs) noexcept {
     PLUGIN_ASSERT(nbInputs == 7);
     PLUGIN_ASSERT(nbOutputs == 1);
+    if (out[0].desc.dims.d[3] % 2 != 0) {
+        use_h2 = false;
+    }
+    if (out[0].desc.dims.d[3] % 4 != 0) {
+        use_int8 = false;
+    }
 }
 
 BEVPoolPluginCreator::BEVPoolPluginCreator() {
@@ -191,7 +233,7 @@ IPluginV2DynamicExt *BEVPoolPluginCreator::createPlugin(
               outWidth = *(static_cast<int const *>(fields[i].data));
           }
       }
-    auto *plugin = new BEVPoolPlugin(outWidth, outHeight);
+    auto *plugin = new BEVPoolPlugin(outWidth, outHeight, false);
     plugin->setPluginNamespace(mNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -205,7 +247,7 @@ IPluginV2DynamicExt *
 BEVPoolPluginCreator::deserializePlugin(const char *name, const void *serialData,
                                        size_t serialLength) noexcept {
   try {
-    auto *plugin = new BEVPoolPlugin{serialData, serialLength};
+    auto *plugin = new BEVPoolPlugin{serialData, serialLength, false};
     plugin->setPluginNamespace(mNamespace.c_str());
     plugin->initialize();
     return plugin;
@@ -216,4 +258,68 @@ BEVPoolPluginCreator::deserializePlugin(const char *name, const void *serialData
 }
 
 
+BEVPoolPluginCreator2::BEVPoolPluginCreator2() {
+    mPluginAttributes.clear();
+    mPluginAttributes.emplace_back(
+            PluginField("out_height", nullptr, PluginFieldType::kINT32, 1));
+    mPluginAttributes.emplace_back(
+            PluginField("out_width", nullptr, PluginFieldType::kINT32, 1));
+
+    mFC.nbFields = mPluginAttributes.size();
+    mFC.fields = mPluginAttributes.data();
+}
+
+char const *BEVPoolPluginCreator2::getPluginName() const noexcept {
+    return I_PLUGIN_NAME2;
+}
+
+char const *BEVPoolPluginCreator2::getPluginVersion() const noexcept {
+    return I_PLUGIN_VERSION;
+}
+
+PluginFieldCollection const *BEVPoolPluginCreator2::getFieldNames() noexcept {
+    return &mFC;
+}
+
+IPluginV2DynamicExt *BEVPoolPluginCreator2::createPlugin(
+        const char *name, const nvinfer1::PluginFieldCollection *fc) noexcept {
+    try {
+        int outWidth, outHeight;
+        PluginField const *fields = fc->fields;
+        for (int i = 0; i < fc->nbFields; i++) {
+            char const *attrName = fields[i].name;
+            if (!strcmp(attrName, "out_height")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                outHeight = *(static_cast<int const *>(fields[i].data));
+            } else if (!strcmp(attrName, "out_width")) {
+                PLUGIN_VALIDATE(fields[i].type == PluginFieldType::kINT32);
+                outWidth = *(static_cast<int const *>(fields[i].data));
+            }
+        }
+        auto *plugin = new BEVPoolPlugin(outWidth, outHeight, true);
+        plugin->setPluginNamespace(mNamespace.c_str());
+        plugin->initialize();
+        return plugin;
+    } catch (std::exception const &e) {
+        caughtError(e);
+    }
+    return nullptr;
+}
+
+IPluginV2DynamicExt *
+BEVPoolPluginCreator2::deserializePlugin(const char *name, const void *serialData,
+                                        size_t serialLength) noexcept {
+    try {
+        auto *plugin = new BEVPoolPlugin{serialData, serialLength, true};
+        plugin->setPluginNamespace(mNamespace.c_str());
+        plugin->initialize();
+        return plugin;
+    } catch (std::exception const &e) {
+        caughtError(e);
+    }
+    return nullptr;
+}
+
+
 REGISTER_TENSORRT_PLUGIN(BEVPoolPluginCreator);
+REGISTER_TENSORRT_PLUGIN(BEVPoolPluginCreator2);
