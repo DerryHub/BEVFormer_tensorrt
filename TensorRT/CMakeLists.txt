@@ -3,12 +3,11 @@ cmake_minimum_required(VERSION 3.12)
 project(tensorrt_ops LANGUAGES CXX CUDA)
 find_package(CUDA REQUIRED)
 
-#execute_process(COMMAND nvcc -lcuda ${CMAKE_CURRENT_SOURCE_DIR}/cudaComputeVersion.cu -o /tmp/cudaComputeVersion)
-#execute_process(COMMAND /tmp/cudaComputeVersion
-#        RESULT_VARIABLE CUDA_RETURN_CODE
-#        OUTPUT_VARIABLE ARCH)
-#execute_process(COMMAND rm /tmp/cudaComputeVersion)
-set(ARCH 75)
+execute_process(COMMAND nvcc -lcuda ${CMAKE_CURRENT_SOURCE_DIR}/cudaComputeVersion.cu -o /tmp/cudaComputeVersion)
+execute_process(COMMAND /tmp/cudaComputeVersion
+        RESULT_VARIABLE CUDA_RETURN_CODE
+        OUTPUT_VARIABLE ARCH)
+execute_process(COMMAND rm /tmp/cudaComputeVersion)
 
 if(NOT CMAKE_TENSORRT_PATH)
     message( "Need: -DCMAKE_TENSORRT_PATH=/path/to/TensorRT")
