@@ -64,12 +64,12 @@ def createModel(
             self.output_shapes = output_shapes
             self.module = module
             self.kwargs = kwargs
-            self.rot = False
+            self.expand = False
             if int8:
                 assert len(output_shapes["output"]) in [3, 4]
                 if len(output_shapes["output"]) == 3:
                     channel = output_shapes["output"][0]
-                    self.rot = True
+                    self.expand = True
                 else:
                     channel = output_shapes["output"][1]
                 self.conv = nn.Conv2d(channel, channel, 1, groups=channel, bias=False)
@@ -78,7 +78,7 @@ def createModel(
         def forward(self, *inputs):
             output = self.module(*inputs, **self.kwargs)
             if int8:
-                if self.rot:
+                if self.expand:
                     output = output.unsqueeze(0)
                 return self.conv(output)
             return output

@@ -1,6 +1,6 @@
 import torch
 from mmdet.models import DETECTORS
-from ..functions import bev_pool_v2
+from ..utils.register import TRT_FUNCTIONS
 
 from third_party.bev_mmdet3d import BEVDet
 from third_party.bev_mmdet3d.core.bbox import bbox3d2result
@@ -10,6 +10,7 @@ from third_party.bev_mmdet3d.core.bbox import bbox3d2result
 class BEVDetTRT(BEVDet):
     def __init__(self, *args, **kwargs):
         super(BEVDetTRT, self).__init__(*args, **kwargs)
+        self.bev_pool_v2 = TRT_FUNCTIONS.get('bev_pool_v2_2')
 
     def get_bev_pool_input(self, sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda):
         coor = self.img_view_transformer.get_lidar_coor(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
@@ -31,8 +32,7 @@ class BEVDetTRT(BEVDet):
         depth = depth.contiguous()
         tran_feat = tran_feat.contiguous()
 
-        import pdb; pdb.set_trace()
-        x = bev_pool_v2(depth, tran_feat,
+        x = self.bev_pool_v2(depth, tran_feat,
                                ranks_depth, ranks_feat, ranks_bev,
                                interval_starts, interval_lengths)
         x = x.permute(0, 3, 1, 2).contiguous()

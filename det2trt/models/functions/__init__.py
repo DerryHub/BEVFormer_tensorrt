@@ -9,7 +9,7 @@ from .modulated_deformable_conv2d import (
 )
 from .rotate import rotate, rotate2
 from .inverse import inverse
-from .bev_pool_v2 import bev_pool_v2
+from .bev_pool_v2 import bev_pool_v2, bev_pool_v2_2
 from ..utils.register import TRT_FUNCTIONS
 
 
@@ -28,3 +28,4 @@ TRT_FUNCTIONS.register_module(module=rotate2)
 TRT_FUNCTIONS.register_module(module=inverse)
 
 TRT_FUNCTIONS.register_module(module=bev_pool_v2)
+TRT_FUNCTIONS.register_module(module=bev_pool_v2_2)
