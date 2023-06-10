@@ -180,3 +180,65 @@
 * output: T[float/half/half2/int8]
 
   Tensor shape: `[C, H, W]`
+
+### Inverse
+
+|  OP Name   | Attributes |     Inputs      |     Outputs      | Tensor Format | Test Device |
+| :--------: | :--------: | :-------------: | :--------------: | :-----------: | :---------: |
+| InverseTRT |     -      | input: T[float] | output: T[float] |    kLinear    | RTX 2080Ti  |
+
+#### Inputs
+
+* input: T[float]
+
+  Tensor shape: `[B, C, H, W]` 
+
+#### Outputs
+
+* output: T[float]
+
+  Tensor shape: `[B, C, H, W]`
+
+### BEV Pool
+
+|    OP Name    |             Attributes              |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type | Tensor Format | Test Device |
+| :-----------: | :---------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-----------: | :---------: |
+| BEVPoolV2TRT  | out_height: int<br />out_width: int | depth: T<br />feat: T<br />ranks_depth: T<br />ranks_feat: T<br /> ranks_bev: T<br /> interval_starts: T<br />interval_lengths: T | output: T |     x1     |    X1.1    |    X2.1    |  nv_half  |    kLinear    | RTX 2080Ti  |
+| BEVPoolV2TRT2 | out_height: int<br />out_width: int | depth: T<br />feat: T<br />ranks_depth: T<br />ranks_feat: T<br /> ranks_bev: T<br /> interval_starts: T<br />interval_lengths: T | output: T |     x1     |    x1.4    |    X2.1    | nv_half2  |    kLinear    | RTX 2080Ti  |
+
+#### Inputs
+
+* depth: T[float/half/half2/int8]
+
+  Tensor shape: `[Cam, D, H, W]` 
+
+* feat: T[float/half/half2/int8]
+
+  Tensor shape: `[Cam, H, W, C]`
+
+* ranks_depth: T[int32]
+
+* ranks_feat: T[int32]
+
+* ranks_bev: T[int32]
+
+* interval_starts: T[int32]
+
+* interval_lengths: T[int32]
+
+
+#### Attributes
+
+* out_height: int
+
+  BEV feature height
+
+* out_width: int
+
+  BEV feature width
+
+#### Outputs
+
+* output: T[float/half/half2/int8]
+
+  Tensor shape: `[1, out_height, out_width, C]`

@@ -1,6 +1,6 @@
-# BEVFormer on TensorRT
+# Deployment of BEV 3D Detection on TensorRT
 
-This repository is a deployment project of [BEVFormer](https://github.com/fundamentalvision/BEVFormer) on [TensorRT](https://developer.nvidia.com/tensorrt), supporting **FP32/FP16/INT8** inference. Meanwhile, in order to improve the inference speed of BEVFormer on TensorRT, this project implements some TensorRT Ops that support [**nv_half**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF__ARITHMETIC.html#group__CUDA__MATH____HALF__ARITHMETIC),  [**nv_half2**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC) and **INT8**. With the accuracy almost unaffected, the inference speed of the **BEVFormer base** can be increased by more than **four times**, the engine size can be reduced by more than **90%**, and the GPU memory usage can be saved by more than **80%**. In addition, the project also supports common 2D object detection models in [MMDetection](https://github.com/open-mmlab/mmdetection), which support **INT8 Quantization** and **TensorRT Deployment** with a small number of code changes.
+This repository is a deployment project of BEV 3D Detection (including [BEVFormer](https://github.com/fundamentalvision/BEVFormer), [BEVDet](https://github.com/HuangJunJie2017/BEVDet)) on [TensorRT](https://developer.nvidia.com/tensorrt), supporting **FP32/FP16/INT8** inference. Meanwhile, in order to improve the inference speed of BEVFormer on TensorRT, this project implements some TensorRT Ops that support [**nv_half**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF__ARITHMETIC.html#group__CUDA__MATH____HALF__ARITHMETIC),  [**nv_half2**](https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC) and **INT8**. With the accuracy almost unaffected, the inference speed of the **BEVFormer base** can be increased by more than **four times**, the engine size can be reduced by more than **90%**, and the GPU memory usage can be saved by more than **80%**. In addition, the project also supports common 2D object detection models in [MMDetection](https://github.com/open-mmlab/mmdetection), which support **INT8 Quantization** and **TensorRT Deployment** with a small number of code changes.
 
 ## Benchmarks
 
@@ -34,7 +34,7 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 
 **\*** `Out of Memory` when onnx2trt with TensorRT-8.5.1.7, but they convert successfully with TensorRT-8.4.3.1. So the version of these engines is TensorRT-8.4.3.1.
 
-#### BEVFormer TensorRT with Custom Plugins (Support nv_half and nv_half2)
+#### BEVFormer TensorRT with Custom Plugins (Support nv_half, nv_half2 and int8)
 
 **FP16 Plugins with nv_half**
 
@@ -63,6 +63,25 @@ This repository is a deployment project of [BEVFormer](https://github.com/fundam
 | BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.478<br/>mAP: 0.369 | 21.5 (x3.26)  | 134 (x0.55) | 1507 (x0.32) | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      |   FP16    |              -              | NDS: 0.517<br/>mAP: 0.416 |  6.6 (x4.40)  | 172 (x0.10) | 3341 (x0.24) | RTX 3090 |
 | BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.516<br/>mAP: 0.414 |  7.7 (x5.13)  | 133 (x0.08) | 2691 (x0.19) | RTX 3090 |
+
+### BEVDet
+
+#### BEVDet PyTorch
+
+|      Model      |   Data   | Batch Size |         NDS/mAP          | FPS  | Size (MB) | Memory (MB) |   Device   |
+| :-------------: | :------: | :--------: | :----------------------: | :--: | :-------: | :---------: | :--------: |
+| BEVDet R50 CBGS | NuScenes |     1      | NDS: 0.38<br/>mAP: 0.298 | 29.0 |    170    |    1858     | RTX 2080Ti |
+
+#### BEVDet TensorRT
+
+**with Custom Plugin bev_pool_v2 (Support nv_half, nv_half2 and int8), modified from [Official BEVDet](https://github.com/HuangJunJie2017/BEVDet)**
+
+|      Model      |   Data   | Batch Size | Float/Int |     Quantization Method     |          NDS/mAP          |  FPS  | Size (MB) | Memory (MB) |   Device   |
+| :-------------: | :------: | :--------: | :-------: | :-------------------------: | :-----------------------: | :---: | :-------: | :---------: | :--------: |
+| BEVDet R50 CBGS | NuScenes |     1      |   FP32    |              -              | NDS: 0.38<br/>mAP: 0.298  | 44.6  |    245    |    1032     | RTX 2080Ti |
+| BEVDet R50 CBGS | NuScenes |     1      |   FP16    |              -              | NDS: 0.38<br/>mAP: 0.298  | 135.1 |    86     |     790     | RTX 2080Ti |
+| BEVDet R50 CBGS | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.355<br/>mAP: 0.274 | 234.7 |    44     |     706     | RTX 2080Ti |
+| BEVDet R50 CBGS | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.357<br/>mAP: 0.277 | 236.4 |    44     |     706     | RTX 2080Ti |
 
 ### 2D Detection Models
 
@@ -354,6 +373,7 @@ sh samples/bevformer/plugin/base/trt_evaluate_int8_fp16_2.sh -d ${gpu_id}
 This project is mainly based on these excellent open source projects:
 
 * [BEVFormer](https://github.com/fundamentalvision/BEVFormer)
+* [BEVDet](https://github.com/HuangJunJie2017/BEVDet)
 * [PyTorch](https://github.com/pytorch/pytorch)
 * [MMCV](https://github.com/open-mmlab/mmcv)
 * [MMDetection](https://github.com/open-mmlab/mmdetection)

@@ -43,6 +43,11 @@ if __name__ == "__main__":
         include_package_data=True,
         ext_modules=[
             make_cuda_ext(
+                name="bev_pool_v2_ext",
+                module="ops.bev_pool_v2",
+                sources=["src/bev_pool.cpp", "src/bev_pool_cuda.cu",],
+            ),
+            make_cuda_ext(
                 name="iou3d_cuda",
                 module="ops.iou3d",
                 sources=["src/iou3d.cpp", "src/iou3d_kernel.cu",],
