@@ -1,4 +1,3 @@
-import torch
 from mmdet.models import DETECTORS
 from ..utils.register import TRT_FUNCTIONS
 

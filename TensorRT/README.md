@@ -181,6 +181,24 @@
 
   Tensor shape: `[C, H, W]`
 
+### Inverse
+
+|  OP Name   | Attributes |     Inputs      |     Outputs      | Tensor Format | Test Device |
+| :--------: | :--------: | :-------------: | :--------------: | :-----------: | :---------: |
+| InverseTRT |     -      | input: T[float] | output: T[float] |    kLinear    | RTX 2080Ti  |
+
+#### Inputs
+
+* input: T[float]
+
+  Tensor shape: `[B, C, H, W]` 
+
+#### Outputs
+
+* output: T[float]
+
+  Tensor shape: `[B, C, H, W]`
+
 ### BEV Pool
 
 |    OP Name    |             Attributes              |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type | Tensor Format | Test Device |
