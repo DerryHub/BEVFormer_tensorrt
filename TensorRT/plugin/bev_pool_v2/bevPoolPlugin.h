@@ -16,9 +16,9 @@ namespace trt_plugin {
 
 class BEVPoolPlugin : public nvinfer1::IPluginV2DynamicExt {
 public:
-    BEVPoolPlugin(int outWidth, int outHeight, bool use_h2);
-    BEVPoolPlugin(const void *serialData, size_t serialLength, bool use_h2);
-    ~BEVPoolPlugin() override;
+  BEVPoolPlugin(int outWidth, int outHeight, bool use_h2);
+  BEVPoolPlugin(const void *serialData, size_t serialLength, bool use_h2);
+  ~BEVPoolPlugin() override;
 
   int32_t getNbOutputs() const noexcept override;
 
@@ -77,8 +77,8 @@ public:
                        int32_t nbOutputs) noexcept override;
 
 private:
-    bool use_h2;
-    bool use_int8 {true};
+  bool use_h2;
+  bool use_int8{true};
   std::string mPluginNamespace;
   std::string mNamespace;
 
@@ -88,7 +88,7 @@ private:
 
 class BEVPoolPluginCreator : public trt_plugin::BaseCreator {
 public:
-    BEVPoolPluginCreator();
+  BEVPoolPluginCreator();
   ~BEVPoolPluginCreator() override = default;
 
   char const *getPluginName() const noexcept override;
@@ -112,26 +112,26 @@ private:
 
 class BEVPoolPluginCreator2 : public trt_plugin::BaseCreator {
 public:
-    BEVPoolPluginCreator2();
-    ~BEVPoolPluginCreator2() override = default;
+  BEVPoolPluginCreator2();
+  ~BEVPoolPluginCreator2() override = default;
 
-    char const *getPluginName() const noexcept override;
+  char const *getPluginName() const noexcept override;
 
-    char const *getPluginVersion() const noexcept override;
+  char const *getPluginVersion() const noexcept override;
 
-    nvinfer1::PluginFieldCollection const *getFieldNames() noexcept override;
+  nvinfer1::PluginFieldCollection const *getFieldNames() noexcept override;
 
-    nvinfer1::IPluginV2DynamicExt *
-    createPlugin(char const *name,
-                 const nvinfer1::PluginFieldCollection *fc) noexcept override;
+  nvinfer1::IPluginV2DynamicExt *
+  createPlugin(char const *name,
+               const nvinfer1::PluginFieldCollection *fc) noexcept override;
 
-    nvinfer1::IPluginV2DynamicExt *
-    deserializePlugin(char const *name, void const *serialData,
-                      size_t serialLength) noexcept override;
+  nvinfer1::IPluginV2DynamicExt *
+  deserializePlugin(char const *name, void const *serialData,
+                    size_t serialLength) noexcept override;
 
 private:
-    static nvinfer1::PluginFieldCollection mFC;
-    static std::vector<nvinfer1::PluginField> mPluginAttributes;
+  static nvinfer1::PluginFieldCollection mFC;
+  static std::vector<nvinfer1::PluginField> mPluginAttributes;
 };
 
 } // namespace trt_plugin

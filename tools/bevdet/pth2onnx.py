@@ -72,20 +72,28 @@ def main():
     sensor2keyegos = global2keyego @ ego2globals @ sensor2egos
     sensor2keyegos = sensor2keyegos
 
-    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = pth_model.get_bev_pool_input(sensor2keyegos,
-                                                                                                         ego2globals,
-                                                                                                         intrins,
-                                                                                                         post_rots,
-                                                                                                         post_trans,
-                                                                                                         bda)
-    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = \
-        ranks_bev.float().numpy(), ranks_depth.float().numpy(), ranks_feat.float().numpy(), interval_starts.float().numpy(), interval_lengths.float().numpy()
+    (
+        ranks_bev,
+        ranks_depth,
+        ranks_feat,
+        interval_starts,
+        interval_lengths,
+    ) = pth_model.get_bev_pool_input(
+        sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
+    )
+    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = (
+        ranks_bev.float().numpy(),
+        ranks_depth.float().numpy(),
+        ranks_feat.float().numpy(),
+        interval_starts.float().numpy(),
+        interval_lengths.float().numpy(),
+    )
     inputs_data = dict(
         ranks_bev=ranks_bev,
         ranks_depth=ranks_depth,
         ranks_feat=ranks_feat,
         interval_starts=interval_starts,
-        interval_lengths=interval_lengths
+        interval_lengths=interval_lengths,
     )
 
     pytorch2onnx(
@@ -95,7 +103,7 @@ def main():
         verbose=False,
         opset_version=args.opset_version,
         cuda=args.cuda,
-        inputs_data=inputs_data
+        inputs_data=inputs_data,
     )
 
 

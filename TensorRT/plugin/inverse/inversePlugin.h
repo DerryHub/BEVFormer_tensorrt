@@ -16,9 +16,9 @@ namespace trt_plugin {
 
 class InversePlugin : public nvinfer1::IPluginV2DynamicExt {
 public:
-    InversePlugin();
-    InversePlugin(const void *serialData, size_t serialLength);
-    ~InversePlugin() override;
+  InversePlugin();
+  InversePlugin(const void *serialData, size_t serialLength);
+  ~InversePlugin() override;
 
   int32_t getNbOutputs() const noexcept override;
 
@@ -89,7 +89,7 @@ private:
 
 class InversePluginCreator : public trt_plugin::BaseCreator {
 public:
-    InversePluginCreator();
+  InversePluginCreator();
   ~InversePluginCreator() override = default;
 
   char const *getPluginName() const noexcept override;

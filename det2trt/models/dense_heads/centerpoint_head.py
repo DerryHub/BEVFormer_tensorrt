@@ -34,6 +34,7 @@ class BEVDetCenterHeadTRT(CenterHead):
             Default: dict(type='BN2d').
         bias (str, optional): Type of bias. Default: 'auto'.
     """
+
     def __init__(self, *args, **kwargs):
         super(BEVDetCenterHeadTRT, self).__init__(*args, **kwargs)
         assert len(self.task_heads) == 1

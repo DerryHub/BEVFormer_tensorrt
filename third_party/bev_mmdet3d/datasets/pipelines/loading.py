@@ -687,8 +687,10 @@ class LoadAnnotations3D(LoadAnnotations):
         repr_str += f"{indent_str}poly2mask={self.poly2mask})"
         return repr_str
 
+
 def mmlabNormalize(img):
     from mmcv.image.photometric import imnormalize
+
     mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
     std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
     to_rgb = True
@@ -710,10 +712,7 @@ class PrepareImageInputs(object):
     """
 
     def __init__(
-        self,
-        data_config,
-        is_train=False,
-        sequential=False,
+        self, data_config, is_train=False, sequential=False,
     ):
         self.is_train = is_train
         self.data_config = data_config
@@ -721,13 +720,11 @@ class PrepareImageInputs(object):
         self.sequential = sequential
 
     def get_rot(self, h):
-        return torch.Tensor([
-            [np.cos(h), np.sin(h)],
-            [-np.sin(h), np.cos(h)],
-        ])
+        return torch.Tensor([[np.cos(h), np.sin(h)], [-np.sin(h), np.cos(h)],])
 
-    def img_transform(self, img, post_rot, post_tran, resize, resize_dims,
-                      crop, flip, rotate):
+    def img_transform(
+        self, img, post_rot, post_tran, resize, resize_dims, crop, flip, rotate
+    ):
         # adjust image
         img = self.img_transform_core(img, resize_dims, crop, flip, rotate)
 
@@ -757,38 +754,37 @@ class PrepareImageInputs(object):
         return img
 
     def choose_cams(self):
-        if self.is_train and self.data_config['Ncams'] < len(
-                self.data_config['cams']):
+        if self.is_train and self.data_config["Ncams"] < len(self.data_config["cams"]):
             cam_names = np.random.choice(
-                self.data_config['cams'],
-                self.data_config['Ncams'],
-                replace=False)
+                self.data_config["cams"], self.data_config["Ncams"], replace=False
+            )
         else:
-            cam_names = self.data_config['cams']
+            cam_names = self.data_config["cams"]
         return cam_names
 
     def sample_augmentation(self, H, W, flip=None, scale=None):
-        fH, fW = self.data_config['input_size']
+        fH, fW = self.data_config["input_size"]
         if self.is_train:
             resize = float(fW) / float(W)
-            resize += np.random.uniform(*self.data_config['resize'])
+            resize += np.random.uniform(*self.data_config["resize"])
             resize_dims = (int(W * resize), int(H * resize))
             newW, newH = resize_dims
-            crop_h = int((1 - np.random.uniform(*self.data_config['crop_h'])) *
-                         newH) - fH
+            crop_h = (
+                int((1 - np.random.uniform(*self.data_config["crop_h"])) * newH) - fH
+            )
             crop_w = int(np.random.uniform(0, max(0, newW - fW)))
             crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
-            flip = self.data_config['flip'] and np.random.choice([0, 1])
-            rotate = np.random.uniform(*self.data_config['rot'])
+            flip = self.data_config["flip"] and np.random.choice([0, 1])
+            rotate = np.random.uniform(*self.data_config["rot"])
         else:
             resize = float(fW) / float(W)
             if scale is not None:
                 resize += scale
             else:
-                resize += self.data_config.get('resize_test', 0.0)
+                resize += self.data_config.get("resize_test", 0.0)
             resize_dims = (int(W * resize), int(H * resize))
             newW, newH = resize_dims
-            crop_h = int((1 - np.mean(self.data_config['crop_h'])) * newH) - fH
+            crop_h = int((1 - np.mean(self.data_config["crop_h"])) * newH) - fH
             crop_w = int(max(0, newW - fW) / 2)
             crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
             flip = False if flip is None else flip
@@ -796,22 +792,22 @@ class PrepareImageInputs(object):
         return resize, resize_dims, crop, flip, rotate
 
     def get_sensor_transforms(self, cam_info, cam_name):
-        w, x, y, z = cam_info['cams'][cam_name]['sensor2ego_rotation']
+        w, x, y, z = cam_info["cams"][cam_name]["sensor2ego_rotation"]
         # sweep sensor to sweep ego
-        sensor2ego_rot = torch.Tensor(
-            Quaternion(w, x, y, z).rotation_matrix)
+        sensor2ego_rot = torch.Tensor(Quaternion(w, x, y, z).rotation_matrix)
         sensor2ego_tran = torch.Tensor(
-            cam_info['cams'][cam_name]['sensor2ego_translation'])
+            cam_info["cams"][cam_name]["sensor2ego_translation"]
+        )
         sensor2ego = sensor2ego_rot.new_zeros((4, 4))
         sensor2ego[3, 3] = 1
         sensor2ego[:3, :3] = sensor2ego_rot
         sensor2ego[:3, -1] = sensor2ego_tran
         # sweep ego to global
-        w, x, y, z = cam_info['cams'][cam_name]['ego2global_rotation']
-        ego2global_rot = torch.Tensor(
-            Quaternion(w, x, y, z).rotation_matrix)
+        w, x, y, z = cam_info["cams"][cam_name]["ego2global_rotation"]
+        ego2global_rot = torch.Tensor(Quaternion(w, x, y, z).rotation_matrix)
         ego2global_tran = torch.Tensor(
-            cam_info['cams'][cam_name]['ego2global_translation'])
+            cam_info["cams"][cam_name]["ego2global_translation"]
+        )
         ego2global = ego2global_rot.new_zeros((4, 4))
         ego2global[3, 3] = 1
         ego2global[:3, :3] = ego2global_rot
@@ -826,31 +822,35 @@ class PrepareImageInputs(object):
         post_rots = []
         post_trans = []
         cam_names = self.choose_cams()
-        results['cam_names'] = cam_names
+        results["cam_names"] = cam_names
         canvas = []
         for cam_name in cam_names:
-            cam_data = results['curr']['cams'][cam_name]
-            filename = cam_data['data_path']
+            cam_data = results["curr"]["cams"][cam_name]
+            filename = cam_data["data_path"]
             img = Image.open(filename)
             post_rot = torch.eye(2)
             post_tran = torch.zeros(2)
 
-            intrin = torch.Tensor(cam_data['cam_intrinsic'])
+            intrin = torch.Tensor(cam_data["cam_intrinsic"])
 
-            sensor2ego, ego2global = \
-                self.get_sensor_transforms(results['curr'], cam_name)
+            sensor2ego, ego2global = self.get_sensor_transforms(
+                results["curr"], cam_name
+            )
             # image view augmentation (resize, crop, horizontal flip, rotate)
             img_augs = self.sample_augmentation(
-                H=img.height, W=img.width, flip=flip, scale=scale)
+                H=img.height, W=img.width, flip=flip, scale=scale
+            )
             resize, resize_dims, crop, flip, rotate = img_augs
-            img, post_rot2, post_tran2 = \
-                self.img_transform(img, post_rot,
-                                   post_tran,
-                                   resize=resize,
-                                   resize_dims=resize_dims,
-                                   crop=crop,
-                                   flip=flip,
-                                   rotate=rotate)
+            img, post_rot2, post_tran2 = self.img_transform(
+                img,
+                post_rot,
+                post_tran,
+                resize=resize,
+                resize_dims=resize_dims,
+                crop=crop,
+                flip=flip,
+                rotate=rotate,
+            )
 
             # for convenience, make augmentation matrices 3x3
             post_tran = torch.zeros(3)
@@ -862,16 +862,17 @@ class PrepareImageInputs(object):
             imgs.append(self.normalize_img(img))
 
             if self.sequential:
-                assert 'adjacent' in results
-                for adj_info in results['adjacent']:
-                    filename_adj = adj_info['cams'][cam_name]['data_path']
+                assert "adjacent" in results
+                for adj_info in results["adjacent"]:
+                    filename_adj = adj_info["cams"][cam_name]["data_path"]
                     img_adjacent = Image.open(filename_adj)
                     img_adjacent = self.img_transform_core(
                         img_adjacent,
                         resize_dims=resize_dims,
                         crop=crop,
                         flip=flip,
-                        rotate=rotate)
+                        rotate=rotate,
+                    )
                     imgs.append(self.normalize_img(img_adjacent))
             intrins.append(intrin)
             sensor2egos.append(sensor2ego)
@@ -880,15 +881,16 @@ class PrepareImageInputs(object):
             post_trans.append(post_tran)
 
         if self.sequential:
-            for adj_info in results['adjacent']:
-                post_trans.extend(post_trans[:len(cam_names)])
-                post_rots.extend(post_rots[:len(cam_names)])
-                intrins.extend(intrins[:len(cam_names)])
+            for adj_info in results["adjacent"]:
+                post_trans.extend(post_trans[: len(cam_names)])
+                post_rots.extend(post_rots[: len(cam_names)])
+                intrins.extend(intrins[: len(cam_names)])
 
                 # align
                 for cam_name in cam_names:
-                    sensor2ego, ego2global = \
-                        self.get_sensor_transforms(adj_info, cam_name)
+                    sensor2ego, ego2global = self.get_sensor_transforms(
+                        adj_info, cam_name
+                    )
                     sensor2egos.append(sensor2ego)
                     ego2globals.append(ego2global)
 
@@ -899,17 +901,16 @@ class PrepareImageInputs(object):
         intrins = torch.stack(intrins)
         post_rots = torch.stack(post_rots)
         post_trans = torch.stack(post_trans)
-        results['canvas'] = canvas
+        results["canvas"] = canvas
         return (imgs, sensor2egos, ego2globals, intrins, post_rots, post_trans)
 
     def __call__(self, results):
-        results['img_inputs'] = self.get_inputs(results)
+        results["img_inputs"] = self.get_inputs(results)
         return results
 
 
 @PIPELINES.register_module()
 class LoadAnnotationsBEVDepth(object):
-
     def __init__(self, bda_aug_conf, classes, is_train=True):
         self.bda_aug_conf = bda_aug_conf
         self.is_train = is_train
@@ -918,10 +919,10 @@ class LoadAnnotationsBEVDepth(object):
     def sample_bda_augmentation(self):
         """Generate bda augmentation values based on bda_config."""
         if self.is_train:
-            rotate_bda = np.random.uniform(*self.bda_aug_conf['rot_lim'])
-            scale_bda = np.random.uniform(*self.bda_aug_conf['scale_lim'])
-            flip_dx = np.random.uniform() < self.bda_aug_conf['flip_dx_ratio']
-            flip_dy = np.random.uniform() < self.bda_aug_conf['flip_dy_ratio']
+            rotate_bda = np.random.uniform(*self.bda_aug_conf["rot_lim"])
+            scale_bda = np.random.uniform(*self.bda_aug_conf["scale_lim"])
+            flip_dx = np.random.uniform() < self.bda_aug_conf["flip_dx_ratio"]
+            flip_dy = np.random.uniform() < self.bda_aug_conf["flip_dy_ratio"]
         else:
             rotate_bda = 0
             scale_bda = 1.0
@@ -929,56 +930,63 @@ class LoadAnnotationsBEVDepth(object):
             flip_dy = False
         return rotate_bda, scale_bda, flip_dx, flip_dy
 
-    def bev_transform(self, gt_boxes, rotate_angle, scale_ratio, flip_dx,
-                      flip_dy):
+    def bev_transform(self, gt_boxes, rotate_angle, scale_ratio, flip_dx, flip_dy):
         rotate_angle = torch.tensor(rotate_angle / 180 * np.pi)
         rot_sin = torch.sin(rotate_angle)
         rot_cos = torch.cos(rotate_angle)
-        rot_mat = torch.Tensor([[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0],
-                                [0, 0, 1]])
-        scale_mat = torch.Tensor([[scale_ratio, 0, 0], [0, scale_ratio, 0],
-                                  [0, 0, scale_ratio]])
+        rot_mat = torch.Tensor(
+            [[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]]
+        )
+        scale_mat = torch.Tensor(
+            [[scale_ratio, 0, 0], [0, scale_ratio, 0], [0, 0, scale_ratio]]
+        )
         flip_mat = torch.Tensor([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
         if flip_dx:
-            flip_mat = flip_mat @ torch.Tensor([[-1, 0, 0], [0, 1, 0],
-                                                [0, 0, 1]])
+            flip_mat = flip_mat @ torch.Tensor([[-1, 0, 0], [0, 1, 0], [0, 0, 1]])
         if flip_dy:
-            flip_mat = flip_mat @ torch.Tensor([[1, 0, 0], [0, -1, 0],
-                                                [0, 0, 1]])
+            flip_mat = flip_mat @ torch.Tensor([[1, 0, 0], [0, -1, 0], [0, 0, 1]])
         rot_mat = flip_mat @ (scale_mat @ rot_mat)
         if gt_boxes.shape[0] > 0:
-            gt_boxes[:, :3] = (
-                rot_mat @ gt_boxes[:, :3].unsqueeze(-1)).squeeze(-1)
+            gt_boxes[:, :3] = (rot_mat @ gt_boxes[:, :3].unsqueeze(-1)).squeeze(-1)
             gt_boxes[:, 3:6] *= scale_ratio
             gt_boxes[:, 6] += rotate_angle
             if flip_dx:
-                gt_boxes[:,
-                         6] = 2 * torch.asin(torch.tensor(1.0)) - gt_boxes[:,
-                                                                           6]
+                gt_boxes[:, 6] = 2 * torch.asin(torch.tensor(1.0)) - gt_boxes[:, 6]
             if flip_dy:
                 gt_boxes[:, 6] = -gt_boxes[:, 6]
-            gt_boxes[:, 7:] = (
-                rot_mat[:2, :2] @ gt_boxes[:, 7:].unsqueeze(-1)).squeeze(-1)
+            gt_boxes[:, 7:] = (rot_mat[:2, :2] @ gt_boxes[:, 7:].unsqueeze(-1)).squeeze(
+                -1
+            )
         return gt_boxes, rot_mat
 
     def __call__(self, results):
-        gt_boxes, gt_labels = results['ann_infos']
-        gt_boxes, gt_labels = torch.tensor(np.array(gt_boxes), dtype=torch.float), torch.tensor(np.array(gt_labels), dtype=torch.float)
-        rotate_bda, scale_bda, flip_dx, flip_dy = self.sample_bda_augmentation(
+        gt_boxes, gt_labels = results["ann_infos"]
+        gt_boxes, gt_labels = (
+            torch.tensor(np.array(gt_boxes), dtype=torch.float),
+            torch.tensor(np.array(gt_labels), dtype=torch.float),
         )
+        rotate_bda, scale_bda, flip_dx, flip_dy = self.sample_bda_augmentation()
         bda_mat = torch.zeros(4, 4)
         bda_mat[3, 3] = 1
-        gt_boxes, bda_rot = self.bev_transform(gt_boxes, rotate_bda, scale_bda,
-                                               flip_dx, flip_dy)
+        gt_boxes, bda_rot = self.bev_transform(
+            gt_boxes, rotate_bda, scale_bda, flip_dx, flip_dy
+        )
         bda_mat[:3, :3] = bda_rot
         if len(gt_boxes) == 0:
             gt_boxes = torch.zeros(0, 9)
-        results['gt_bboxes_3d'] = \
-            LiDARInstance3DBoxes(gt_boxes, box_dim=gt_boxes.shape[-1],
-                                 origin=(0.5, 0.5, 0.5))
-        results['gt_labels_3d'] = gt_labels
-        imgs, rots, trans, intrins = results['img_inputs'][:4]
-        post_rots, post_trans = results['img_inputs'][4:]
-        results['img_inputs'] = (imgs, rots, trans, intrins, post_rots,
-                                 post_trans, bda_rot)
+        results["gt_bboxes_3d"] = LiDARInstance3DBoxes(
+            gt_boxes, box_dim=gt_boxes.shape[-1], origin=(0.5, 0.5, 0.5)
+        )
+        results["gt_labels_3d"] = gt_labels
+        imgs, rots, trans, intrins = results["img_inputs"][:4]
+        post_rots, post_trans = results["img_inputs"][4:]
+        results["img_inputs"] = (
+            imgs,
+            rots,
+            trans,
+            intrins,
+            post_rots,
+            post_trans,
+            bda_rot,
+        )
         return results

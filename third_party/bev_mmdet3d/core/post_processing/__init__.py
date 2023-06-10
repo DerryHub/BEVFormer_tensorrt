@@ -19,5 +19,5 @@ __all__ = [
     "aligned_3d_nms",
     "merge_aug_bboxes_3d",
     "circle_nms",
-    "nms_bev"
+    "nms_bev",
 ]

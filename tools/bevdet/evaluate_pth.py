@@ -63,7 +63,13 @@ def main():
     model.eval()
     model = MMDataParallel(model.cuda())
 
-    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = None, None, None, None, None
+    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = (
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
     ts = []
     results = []
     prog_bar = mmcv.ProgressBar(len(dataset))
@@ -71,7 +77,9 @@ def main():
         img_inputs = data["img_inputs"][0]
         img_metas = data["img_metas"][0].data[0]
 
-        image, sensor2egos, ego2globals, intrins, post_rots, post_trans, bda = [item.cuda() for item in img_inputs]
+        image, sensor2egos, ego2globals, intrins, post_rots, post_trans, bda = [
+            item.cuda() for item in img_inputs
+        ]
 
         B, N, C, H, W = image.shape
         sensor2egos = sensor2egos.view(B, N, 4, 4)
@@ -84,21 +92,38 @@ def main():
         sensor2keyegos = sensor2keyegos
 
         if ranks_bev is None:
-            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = model.module.get_bev_pool_input(sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda)
-            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = ranks_bev.float(), ranks_depth.float(), ranks_feat.float(), interval_starts.float(), interval_lengths.float()
+            (
+                ranks_bev,
+                ranks_depth,
+                ranks_feat,
+                interval_starts,
+                interval_lengths,
+            ) = model.module.get_bev_pool_input(
+                sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
+            )
+            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = (
+                ranks_bev.float(),
+                ranks_depth.float(),
+                ranks_feat.float(),
+                interval_starts.float(),
+                interval_lengths.float(),
+            )
 
         with torch.no_grad():
             torch.cuda.synchronize()
             t1 = time.time()
             out = model(
-                image, ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths
+                image,
+                ranks_bev,
+                ranks_depth,
+                ranks_feat,
+                interval_starts,
+                interval_lengths,
             )
             torch.cuda.synchronize()
             t2 = time.time()
 
-        results.extend(
-            model.module.post_process(*out, img_metas)
-        )
+        results.extend(model.module.post_process(*out, img_metas))
 
         ts.append(t2 - t1)
 

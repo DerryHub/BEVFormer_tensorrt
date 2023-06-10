@@ -28,5 +28,6 @@ class LSSViewTransformerTRT(LSSViewTransformer):
             Multi-view 3D Detection`.
         collapse_z (bool): Whether to collapse in z direction.
     """
+
     def __init__(self, *args, **kwargs):
         super(LSSViewTransformerTRT, self).__init__(*args, **kwargs)

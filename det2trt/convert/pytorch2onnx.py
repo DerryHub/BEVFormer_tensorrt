@@ -7,7 +7,13 @@ from mmcv.runner import load_checkpoint
 
 @torch.no_grad()
 def pytorch2onnx(
-    config, checkpoint, output_file, opset_version=13, verbose=False, cuda=True, inputs_data=None
+    config,
+    checkpoint,
+    output_file,
+    opset_version=13,
+    verbose=False,
+    cuda=True,
+    inputs_data=None,
 ):
 
     model = build_detector(config.model, test_cfg=config.get("test_cfg", None))

@@ -16,7 +16,9 @@ class InverseTestCase(BaseTestCase, unittest.TestCase):
         torch.random.manual_seed(0)
         print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
         cls.input_data = dict(
-            inputs=torch.eye(input_shape[-1], device="cuda").repeat(*input_shape[:-2], 1, 1),
+            inputs=torch.eye(input_shape[-1], device="cuda").repeat(
+                *input_shape[:-2], 1, 1
+            ),
         )
 
     @classmethod
@@ -29,9 +31,7 @@ class InverseTestCase(BaseTestCase, unittest.TestCase):
         BaseTestCase.__init__(
             self,
             "inverse",
-            input_shapes={
-                "inputs": input_shape,
-            },
+            input_shapes={"inputs": input_shape,},
             output_shapes={"output": output_shape},
             params=params,
             device="cpu",

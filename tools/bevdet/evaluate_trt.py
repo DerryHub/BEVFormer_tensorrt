@@ -71,7 +71,13 @@ def main():
 
     pth_model = build_model(config.model, test_cfg=config.get("test_cfg"))
 
-    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = None, None, None, None, None
+    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = (
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
     ts = []
     bbox_results = []
     prog_bar = mmcv.ProgressBar(len(dataset))
@@ -79,7 +85,15 @@ def main():
         img_inputs = data["img_inputs"][0]
         img_metas = data["img_metas"][0].data[0]
 
-        image, sensor2egos, ego2globals, intrins, post_rots, post_trans, bda = img_inputs
+        (
+            image,
+            sensor2egos,
+            ego2globals,
+            intrins,
+            post_rots,
+            post_trans,
+            bda,
+        ) = img_inputs
 
         B, N, C, H, W = image.shape
         sensor2egos = sensor2egos.view(B, N, 4, 4)
@@ -92,11 +106,22 @@ def main():
         sensor2keyegos = sensor2keyegos
 
         if ranks_bev is None:
-            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = pth_model.get_bev_pool_input(sensor2keyegos, ego2globals,
-                                                                                              intrins, post_rots,
-                                                                                              post_trans, bda)
-            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = \
-                ranks_bev.float().numpy(), ranks_depth.float().numpy(), ranks_feat.float().numpy(), interval_starts.float().numpy(), interval_lengths.float().numpy()
+            (
+                ranks_bev,
+                ranks_depth,
+                ranks_feat,
+                interval_starts,
+                interval_lengths,
+            ) = pth_model.get_bev_pool_input(
+                sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
+            )
+            ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = (
+                ranks_bev.float().numpy(),
+                ranks_depth.float().numpy(),
+                ranks_feat.float().numpy(),
+                interval_starts.float().numpy(),
+                interval_lengths.float().numpy(),
+            )
 
         image = image.numpy()
         batch_size, cameras, _, img_h, img_w = image.shape

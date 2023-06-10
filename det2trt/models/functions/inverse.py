@@ -19,5 +19,6 @@ class _Inverse(Function):
 
 _inverse = _Inverse.apply
 
+
 def inverse(inputs):
     return _inverse(inputs)

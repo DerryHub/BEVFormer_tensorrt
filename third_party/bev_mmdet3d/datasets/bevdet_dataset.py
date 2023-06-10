@@ -60,48 +60,50 @@ class BEVDetNuScenesDataset(NuScenesDataset):
     """
 
     map_name_from_general_to_detection = {
-        'human.pedestrian.adult': 'pedestrian',
-        'human.pedestrian.child': 'pedestrian',
-        'human.pedestrian.wheelchair': 'ignore',
-        'human.pedestrian.stroller': 'ignore',
-        'human.pedestrian.personal_mobility': 'ignore',
-        'human.pedestrian.police_officer': 'pedestrian',
-        'human.pedestrian.construction_worker': 'pedestrian',
-        'animal': 'ignore',
-        'vehicle.car': 'car',
-        'vehicle.motorcycle': 'motorcycle',
-        'vehicle.bicycle': 'bicycle',
-        'vehicle.bus.bendy': 'bus',
-        'vehicle.bus.rigid': 'bus',
-        'vehicle.truck': 'truck',
-        'vehicle.construction': 'construction_vehicle',
-        'vehicle.emergency.ambulance': 'ignore',
-        'vehicle.emergency.police': 'ignore',
-        'vehicle.trailer': 'trailer',
-        'movable_object.barrier': 'barrier',
-        'movable_object.trafficcone': 'traffic_cone',
-        'movable_object.pushable_pullable': 'ignore',
-        'movable_object.debris': 'ignore',
-        'static_object.bicycle_rack': 'ignore',
+        "human.pedestrian.adult": "pedestrian",
+        "human.pedestrian.child": "pedestrian",
+        "human.pedestrian.wheelchair": "ignore",
+        "human.pedestrian.stroller": "ignore",
+        "human.pedestrian.personal_mobility": "ignore",
+        "human.pedestrian.police_officer": "pedestrian",
+        "human.pedestrian.construction_worker": "pedestrian",
+        "animal": "ignore",
+        "vehicle.car": "car",
+        "vehicle.motorcycle": "motorcycle",
+        "vehicle.bicycle": "bicycle",
+        "vehicle.bus.bendy": "bus",
+        "vehicle.bus.rigid": "bus",
+        "vehicle.truck": "truck",
+        "vehicle.construction": "construction_vehicle",
+        "vehicle.emergency.ambulance": "ignore",
+        "vehicle.emergency.police": "ignore",
+        "vehicle.trailer": "trailer",
+        "movable_object.barrier": "barrier",
+        "movable_object.trafficcone": "traffic_cone",
+        "movable_object.pushable_pullable": "ignore",
+        "movable_object.debris": "ignore",
+        "static_object.bicycle_rack": "ignore",
     }
 
-    def __init__(self,
-                 ann_file,
-                 pipeline=None,
-                 data_root=None,
-                 classes=None,
-                 load_interval=1,
-                 with_velocity=True,
-                 modality=None,
-                 box_type_3d='LiDAR',
-                 filter_empty_gt=True,
-                 test_mode=False,
-                 eval_version='detection_cvpr_2019',
-                 use_valid_flag=False,
-                 img_info_prototype='mmcv',
-                 multi_adj_frame_id_cfg=None,
-                 ego_cam='CAM_FRONT',
-                 stereo=False):
+    def __init__(
+        self,
+        ann_file,
+        pipeline=None,
+        data_root=None,
+        classes=None,
+        load_interval=1,
+        with_velocity=True,
+        modality=None,
+        box_type_3d="LiDAR",
+        filter_empty_gt=True,
+        test_mode=False,
+        eval_version="detection_cvpr_2019",
+        use_valid_flag=False,
+        img_info_prototype="mmcv",
+        multi_adj_frame_id_cfg=None,
+        ego_cam="CAM_FRONT",
+        stereo=False,
+    ):
         super(BEVDetNuScenesDataset, self).__init__(
             ann_file=ann_file,
             pipeline=pipeline,
@@ -144,26 +146,30 @@ class BEVDetNuScenesDataset(NuScenesDataset):
         info = self.data_infos[index]
         # standard protocol modified from SECOND.Pytorch
         input_dict = dict(
-            sample_idx=info['token'],
-            pts_filename=info['lidar_path'],
-            sweeps=info['sweeps'],
-            timestamp=info['timestamp'] / 1e6,
+            sample_idx=info["token"],
+            pts_filename=info["lidar_path"],
+            sweeps=info["sweeps"],
+            timestamp=info["timestamp"] / 1e6,
         )
         cls = []
-        for name in info['gt_names']:
+        for name in info["gt_names"]:
             if name in self.map_name_from_general_to_detection:
                 name = self.map_name_from_general_to_detection[name]
-            if name == 'ignore':
+            if name == "ignore":
                 cls.append(-1)
             else:
                 cls.append(self.CLASSES.index(name))
         cls = np.array(cls)
-        input_dict['ann_infos'] = \
-            np.concatenate([info['gt_boxes'][cls != -1], info['gt_velocity'][cls != -1]], axis=1), cls[cls != -1]
-        if self.modality['use_camera']:
-            assert self.img_info_prototype in ['bevdet', 'bevdet4d']
+        input_dict["ann_infos"] = (
+            np.concatenate(
+                [info["gt_boxes"][cls != -1], info["gt_velocity"][cls != -1]], axis=1
+            ),
+            cls[cls != -1],
+        )
+        if self.modality["use_camera"]:
+            assert self.img_info_prototype in ["bevdet", "bevdet4d"]
             input_dict.update(dict(curr=info))
-            if self.img_info_prototype == 'bevdet4d':
+            if self.img_info_prototype == "bevdet4d":
                 info_adj_list = self.get_adj_info(info, index)
                 input_dict.update(dict(adjacent=info_adj_list))
         return input_dict
@@ -177,8 +183,7 @@ class BEVDetNuScenesDataset(NuScenesDataset):
             adj_id_list.append(self.multi_adj_frame_id_cfg[1])
         for select_id in adj_id_list:
             select_id = max(index - select_id, 0)
-            if not self.data_infos[select_id]['scene_token'] == info[
-                    'scene_token']:
+            if not self.data_infos[select_id]["scene_token"] == info["scene_token"]:
                 info_adj_list.append(info)
             else:
                 info_adj_list.append(self.data_infos[select_id])
@@ -199,17 +204,19 @@ class BEVDetNuScenesDataset(NuScenesDataset):
         nusc_annos = {}
         mapped_class_names = self.CLASSES
 
-        print('Start to convert detection format...')
+        print("Start to convert detection format...")
         for sample_id, det in enumerate(mmcv.track_iter_progress(results)):
-            boxes = det['boxes_3d'].tensor.numpy()
-            scores = det['scores_3d'].numpy()
-            labels = det['labels_3d'].numpy()
-            sample_token = self.data_infos[sample_id]['token']
+            boxes = det["boxes_3d"].tensor.numpy()
+            scores = det["scores_3d"].numpy()
+            labels = det["labels_3d"].numpy()
+            sample_token = self.data_infos[sample_id]["token"]
 
-            trans = self.data_infos[sample_id]['cams'][
-                self.ego_cam]['ego2global_translation']
-            rot = self.data_infos[sample_id]['cams'][
-                self.ego_cam]['ego2global_rotation']
+            trans = self.data_infos[sample_id]["cams"][self.ego_cam][
+                "ego2global_translation"
+            ]
+            rot = self.data_infos[sample_id]["cams"][self.ego_cam][
+                "ego2global_rotation"
+            ]
             rot = pyquaternion.Quaternion(rot)
             annos = list()
             for i, box in enumerate(boxes):
@@ -223,25 +230,24 @@ class BEVDetNuScenesDataset(NuScenesDataset):
                 nusc_box = NuScenesBox(center, wlh, quat, velocity=box_vel)
                 nusc_box.rotate(rot)
                 nusc_box.translate(trans)
-                if np.sqrt(nusc_box.velocity[0]**2 +
-                           nusc_box.velocity[1]**2) > 0.2:
+                if np.sqrt(nusc_box.velocity[0] ** 2 + nusc_box.velocity[1] ** 2) > 0.2:
                     if name in [
-                            'car',
-                            'construction_vehicle',
-                            'bus',
-                            'truck',
-                            'trailer',
+                        "car",
+                        "construction_vehicle",
+                        "bus",
+                        "truck",
+                        "trailer",
                     ]:
-                        attr = 'vehicle.moving'
-                    elif name in ['bicycle', 'motorcycle']:
-                        attr = 'cycle.with_rider'
+                        attr = "vehicle.moving"
+                    elif name in ["bicycle", "motorcycle"]:
+                        attr = "cycle.with_rider"
                     else:
                         attr = self.DefaultAttribute[name]
                 else:
-                    if name in ['pedestrian']:
-                        attr = 'pedestrian.standing'
-                    elif name in ['bus']:
-                        attr = 'vehicle.stopped'
+                    if name in ["pedestrian"]:
+                        attr = "pedestrian.standing"
+                    elif name in ["bus"]:
+                        attr = "vehicle.stopped"
                     else:
                         attr = self.DefaultAttribute[name]
                 nusc_anno = dict(
@@ -261,12 +267,12 @@ class BEVDetNuScenesDataset(NuScenesDataset):
             else:
                 nusc_annos[sample_token] = annos
         nusc_submissions = {
-            'meta': self.modality,
-            'results': nusc_annos,
+            "meta": self.modality,
+            "results": nusc_annos,
         }
 
         mmcv.mkdir_or_exist(jsonfile_prefix)
-        res_path = osp.join(jsonfile_prefix, 'results_nusc.json')
-        print('Results writes to', res_path)
+        res_path = osp.join(jsonfile_prefix, "results_nusc.json")
+        print("Results writes to", res_path)
         mmcv.dump(nusc_submissions, res_path)
         return res_path

@@ -6,10 +6,9 @@ import numpy as np
 import torch
 
 
-def array_converter(to_torch=True,
-                    apply_to=tuple(),
-                    template_arg_name_=None,
-                    recover=True):
+def array_converter(
+    to_torch=True, apply_to=tuple(), template_arg_name_=None, recover=True
+):
     """Wrapper function for data-type agnostic processing.
 
     First converts input arrays to PyTorch tensors or NumPy ndarrays
@@ -116,14 +115,17 @@ def array_converter(to_torch=True,
                 template_arg_name = template_arg_name_
 
             if template_arg_name not in all_arg_names:
-                raise ValueError(f'{template_arg_name} is not among the '
-                                 f'argument list of function {func_name}')
+                raise ValueError(
+                    f"{template_arg_name} is not among the "
+                    f"argument list of function {func_name}"
+                )
 
             # inspect apply_to
             for arg_to_apply in apply_to:
                 if arg_to_apply not in all_arg_names:
-                    raise ValueError(f'{arg_to_apply} is not '
-                                     f'an argument of {func_name}')
+                    raise ValueError(
+                        f"{arg_to_apply} is not " f"an argument of {func_name}"
+                    )
 
             new_args = []
             new_kwargs = {}
@@ -136,7 +138,9 @@ def array_converter(to_torch=True,
                 if arg_names[i] in apply_to:
                     new_args.append(
                         converter.convert(
-                            input_array=arg_value, target_type=target_type))
+                            input_array=arg_value, target_type=target_type
+                        )
+                    )
                 else:
                     new_args.append(arg_value)
 
@@ -152,15 +156,16 @@ def array_converter(to_torch=True,
                 if arg_name in kwargs:
                     if arg_name in apply_to:
                         new_kwargs[arg_name] = converter.convert(
-                            input_array=kwargs[arg_name],
-                            target_type=target_type)
+                            input_array=kwargs[arg_name], target_type=target_type
+                        )
                     else:
                         new_kwargs[arg_name] = kwargs[arg_name]
                 else:
                     default_value = default_arg_values[i - no_default_arg_num]
                     if arg_name in apply_to:
                         new_kwargs[arg_name] = converter.convert(
-                            input_array=default_value, target_type=target_type)
+                            input_array=default_value, target_type=target_type
+                        )
                     else:
                         new_kwargs[arg_name] = default_value
                 if arg_name == template_arg_name:
@@ -177,8 +182,9 @@ def array_converter(to_torch=True,
                     new_data = []
                     for item in input_data:
                         new_data.append(recursive_recover(item))
-                    return tuple(new_data) if isinstance(input_data,
-                                                         tuple) else new_data
+                    return (
+                        tuple(new_data) if isinstance(input_data, tuple) else new_data
+                    )
                 elif isinstance(input_data, dict):
                     new_data = {}
                     for k, v in input_data.items():
@@ -201,9 +207,21 @@ def array_converter(to_torch=True,
 
 class ArrayConverter:
 
-    SUPPORTED_NON_ARRAY_TYPES = (int, float, np.int8, np.int16, np.int32,
-                                 np.int64, np.uint8, np.uint16, np.uint32,
-                                 np.uint64, np.float16, np.float32, np.float64)
+    SUPPORTED_NON_ARRAY_TYPES = (
+        int,
+        float,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.float16,
+        np.float32,
+        np.float64,
+    )
 
     def __init__(self, template_array=None):
         if template_array is not None:
@@ -225,7 +243,7 @@ class ArrayConverter:
         """
         self.array_type = type(array)
         self.is_num = False
-        self.device = 'cpu'
+        self.device = "cpu"
 
         if isinstance(array, np.ndarray):
             self.dtype = array.dtype
@@ -239,16 +257,17 @@ class ArrayConverter:
                     raise TypeError
                 self.dtype = array.dtype
             except (ValueError, TypeError):
-                print(f'The following list cannot be converted to'
-                      f' a numpy array of supported dtype:\n{array}')
+                print(
+                    f"The following list cannot be converted to"
+                    f" a numpy array of supported dtype:\n{array}"
+                )
                 raise
         elif isinstance(array, self.SUPPORTED_NON_ARRAY_TYPES):
             self.array_type = np.ndarray
             self.is_num = True
             self.dtype = np.dtype(type(array))
         else:
-            raise TypeError(f'Template type {self.array_type}'
-                            f' is not supported.')
+            raise TypeError(f"Template type {self.array_type}" f" is not supported.")
 
     def convert(self, input_array, target_type=None, target_array=None):
         """Convert input array to target data type.
@@ -277,17 +296,19 @@ class ArrayConverter:
                 if input_array.dtype not in self.SUPPORTED_NON_ARRAY_TYPES:
                     raise TypeError
             except (ValueError, TypeError):
-                print(f'The input cannot be converted to'
-                      f' a single-type numpy array:\n{input_array}')
+                print(
+                    f"The input cannot be converted to"
+                    f" a single-type numpy array:\n{input_array}"
+                )
                 raise
         elif isinstance(input_array, self.SUPPORTED_NON_ARRAY_TYPES):
             input_array = np.array(input_array)
         array_type = type(input_array)
-        assert target_type is not None or target_array is not None, \
-            'must specify a target'
+        assert (
+            target_type is not None or target_array is not None
+        ), "must specify a target"
         if target_type is not None:
-            assert target_type in (np.ndarray, torch.Tensor), \
-                'invalid target type'
+            assert target_type in (np.ndarray, torch.Tensor), "invalid target type"
             if target_type == array_type:
                 return input_array
             elif target_type == np.ndarray:
@@ -295,30 +316,31 @@ class ArrayConverter:
                 converted_array = input_array.cpu().numpy().astype(np.float32)
             else:
                 # default dtype is float32, device is 'cpu'
-                converted_array = torch.tensor(
-                    input_array, dtype=torch.float32)
+                converted_array = torch.tensor(input_array, dtype=torch.float32)
         else:
-            assert isinstance(target_array, (np.ndarray, torch.Tensor)), \
-                'invalid target array type'
+            assert isinstance(
+                target_array, (np.ndarray, torch.Tensor)
+            ), "invalid target array type"
             if isinstance(target_array, array_type):
                 return input_array
             elif isinstance(target_array, np.ndarray):
-                converted_array = input_array.cpu().numpy().astype(
-                    target_array.dtype)
+                converted_array = input_array.cpu().numpy().astype(target_array.dtype)
             else:
                 converted_array = target_array.new_tensor(input_array)
         return converted_array
 
     def recover(self, input_array):
-        assert isinstance(input_array, (np.ndarray, torch.Tensor)), \
-            'invalid input array type'
+        assert isinstance(
+            input_array, (np.ndarray, torch.Tensor)
+        ), "invalid input array type"
         if isinstance(input_array, self.array_type):
             return input_array
         elif isinstance(input_array, torch.Tensor):
             converted_array = input_array.cpu().numpy().astype(self.dtype)
         else:
             converted_array = torch.tensor(
-                input_array, dtype=self.dtype, device=self.device)
+                input_array, dtype=self.dtype, device=self.device
+            )
         if self.is_num:
             converted_array = converted_array.item()
         return converted_array

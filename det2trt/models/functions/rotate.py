@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.autograd import Function
 
+
 class _Rotate(Function):
     @staticmethod
     def symbolic(g, img, angle, center, interpolation):

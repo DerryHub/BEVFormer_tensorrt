@@ -77,20 +77,35 @@ def main():
 
     calibrator = None
     if args.calibrator is not None:
-        config.input_shapes['ranks_bev'] = [188027]
-        config.input_shapes['ranks_depth'] = [188027]
-        config.input_shapes['ranks_feat'] = [188027]
-        config.input_shapes['interval_starts'] = [11416]
-        config.input_shapes['interval_lengths'] = [11416]
+        config.input_shapes["ranks_bev"] = [188027]
+        config.input_shapes["ranks_depth"] = [188027]
+        config.input_shapes["ranks_feat"] = [188027]
+        config.input_shapes["interval_starts"] = [11416]
+        config.input_shapes["interval_lengths"] = [11416]
+
         class Calibrator(get_calibrator(args.calibrator)):
             def __init__(self, *args, **kwargs):
                 super(Calibrator, self).__init__(*args, **kwargs)
-                self.ranks_bev, self.ranks_depth, self.ranks_feat, self.interval_starts, self.interval_lengths = None, None, None, None, None
+                (
+                    self.ranks_bev,
+                    self.ranks_depth,
+                    self.ranks_feat,
+                    self.interval_starts,
+                    self.interval_lengths,
+                ) = (None, None, None, None, None)
 
             def decode_data(self, data):
                 img_inputs = data["img_inputs"][0]
 
-                image, sensor2egos, ego2globals, intrins, post_rots, post_trans, bda = img_inputs
+                (
+                    image,
+                    sensor2egos,
+                    ego2globals,
+                    intrins,
+                    post_rots,
+                    post_trans,
+                    bda,
+                ) = img_inputs
 
                 B, N, C, H, W = image.shape
                 sensor2egos = sensor2egos.view(B, N, 4, 4)
@@ -103,37 +118,74 @@ def main():
                 sensor2keyegos = sensor2keyegos
 
                 if self.ranks_bev is None:
-                    ranks_bev, ranks_depth, ranks_feat, interval_starts, interval_lengths = pth_model.get_bev_pool_input(
-                        sensor2keyegos, ego2globals,
-                        intrins, post_rots,
-                        post_trans, bda)
-                    self.ranks_bev, self.ranks_depth, self.ranks_feat, self.interval_starts, self.interval_lengths = \
-                        ranks_bev.float().numpy(), ranks_depth.float().numpy(), ranks_feat.float().numpy(), interval_starts.float().numpy(), interval_lengths.float().numpy()
+                    (
+                        ranks_bev,
+                        ranks_depth,
+                        ranks_feat,
+                        interval_starts,
+                        interval_lengths,
+                    ) = pth_model.get_bev_pool_input(
+                        sensor2keyegos, ego2globals, intrins, post_rots, post_trans, bda
+                    )
+                    (
+                        self.ranks_bev,
+                        self.ranks_depth,
+                        self.ranks_feat,
+                        self.interval_starts,
+                        self.interval_lengths,
+                    ) = (
+                        ranks_bev.float().numpy(),
+                        ranks_depth.float().numpy(),
+                        ranks_feat.float().numpy(),
+                        interval_starts.float().numpy(),
+                        interval_lengths.float().numpy(),
+                    )
 
                 for name in self.names:
                     if name == "image":
                         image = image.numpy().reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == image.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes == image.nbytes
+                        )
                         self.host_device_mem_dic[name].host = image
                     elif name == "ranks_bev":
                         ranks_bev = self.ranks_bev.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == ranks_bev.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == ranks_bev.nbytes
+                        )
                         self.host_device_mem_dic[name].host = ranks_bev
                     elif name == "ranks_depth":
                         ranks_depth = self.ranks_depth.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == ranks_depth.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == ranks_depth.nbytes
+                        )
                         self.host_device_mem_dic[name].host = ranks_depth
                     elif name == "ranks_feat":
                         ranks_feat = self.ranks_feat.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == ranks_feat.nbytes
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == ranks_feat.nbytes
+                        )
                         self.host_device_mem_dic[name].host = ranks_feat
                     elif name == "interval_starts":
-                        interval_starts = self.interval_starts.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == interval_starts.nbytes
+                        interval_starts = self.interval_starts.reshape(-1).astype(
+                            np.float32
+                        )
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == interval_starts.nbytes
+                        )
                         self.host_device_mem_dic[name].host = interval_starts
                     elif name == "interval_lengths":
-                        interval_lengths = self.interval_lengths.reshape(-1).astype(np.float32)
-                        assert self.host_device_mem_dic[name].host.nbytes == interval_lengths.nbytes
+                        interval_lengths = self.interval_lengths.reshape(-1).astype(
+                            np.float32
+                        )
+                        assert (
+                            self.host_device_mem_dic[name].host.nbytes
+                            == interval_lengths.nbytes
+                        )
                         self.host_device_mem_dic[name].host = interval_lengths
                     else:
                         raise RuntimeError(f"Cannot find input name {name}.")

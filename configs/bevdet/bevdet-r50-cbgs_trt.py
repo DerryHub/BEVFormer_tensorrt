@@ -1,9 +1,9 @@
 _base_ = ["bevdet-r50-cbgs.py", "../_base_/det2trt.py"]
 
 model = dict(
-    type='BEVDetTRT',
-    img_view_transformer=dict(type='LSSViewTransformerTRT'),
-    pts_bbox_head=dict(type='BEVDetCenterHeadTRT')
+    type="BEVDetTRT",
+    img_view_transformer=dict(type="LSSViewTransformerTRT"),
+    pts_bbox_head=dict(type="BEVDetCenterHeadTRT"),
 )
 
 data = dict(
@@ -17,8 +17,8 @@ data = dict(
         img_info_prototype={{_base_.data.val.img_info_prototype}},
         data_root={{_base_.data.val.data_root}},
         test_mode=True,
-        box_type_3d='LiDAR'
-    )
+        box_type_3d="LiDAR",
+    ),
 )
 
 # batch_size, num_classes, img_h, img_w
@@ -36,14 +36,44 @@ input_shapes = dict(
     ranks_depth=[179520],
     ranks_feat=[179520],
     interval_starts=[11398],
-    interval_lengths=[11398]
+    interval_lengths=[11398],
 )
 
 output_shapes = dict(
-    reg=["batch_size", 2, "int((bev_y[1]-bev_y[0])/bev_y[2])", "int((bev_x[1]-bev_x[0])/bev_x[2])"],
-    height=["batch_size", 1, "int((bev_y[1]-bev_y[0])/bev_y[2])", "int((bev_x[1]-bev_x[0])/bev_x[2])"],
-    dim=["batch_size", 3, "int((bev_y[1]-bev_y[0])/bev_y[2])", "int((bev_x[1]-bev_x[0])/bev_x[2])"],
-    rot=["batch_size", 2, "int((bev_y[1]-bev_y[0])/bev_y[2])", "int((bev_x[1]-bev_x[0])/bev_x[2])"],
-    vel=["batch_size", 2, "int((bev_y[1]-bev_y[0])/bev_y[2])", "int((bev_x[1]-bev_x[0])/bev_x[2])"],
-    heatmap=["batch_size", 10, "int((bev_y[1]-bev_y[0])/bev_y[2])", "int((bev_x[1]-bev_x[0])/bev_x[2])"]
+    reg=[
+        "batch_size",
+        2,
+        "int((bev_y[1]-bev_y[0])/bev_y[2])",
+        "int((bev_x[1]-bev_x[0])/bev_x[2])",
+    ],
+    height=[
+        "batch_size",
+        1,
+        "int((bev_y[1]-bev_y[0])/bev_y[2])",
+        "int((bev_x[1]-bev_x[0])/bev_x[2])",
+    ],
+    dim=[
+        "batch_size",
+        3,
+        "int((bev_y[1]-bev_y[0])/bev_y[2])",
+        "int((bev_x[1]-bev_x[0])/bev_x[2])",
+    ],
+    rot=[
+        "batch_size",
+        2,
+        "int((bev_y[1]-bev_y[0])/bev_y[2])",
+        "int((bev_x[1]-bev_x[0])/bev_x[2])",
+    ],
+    vel=[
+        "batch_size",
+        2,
+        "int((bev_y[1]-bev_y[0])/bev_y[2])",
+        "int((bev_x[1]-bev_x[0])/bev_x[2])",
+    ],
+    heatmap=[
+        "batch_size",
+        10,
+        "int((bev_y[1]-bev_y[0])/bev_y[2])",
+        "int((bev_x[1]-bev_x[0])/bev_x[2])",
+    ],
 )

@@ -224,8 +224,9 @@ def circle_nms(dets, thresh, post_max_size=83):
 # This function duplicates functionality of mmcv.ops.iou_3d.nms_bev
 # from mmcv<=1.5, but using cuda ops from mmcv.ops.nms.nms_rotated.
 # Nms api will be unified in mmdetection3d one day.
-def nms_bev(boxes, scores, thresh, pre_max_size=None, post_max_size=None,
-            xyxyr2xywhr=True):
+def nms_bev(
+    boxes, scores, thresh, pre_max_size=None, post_max_size=None, xyxyr2xywhr=True
+):
     """NMS function GPU implementation (for BEV boxes). The overlap of two
     boxes for IoU calculation is defined as the exact overlapping area of the
     two boxes. In this function, one can also set ``pre_max_size`` and
@@ -244,7 +245,7 @@ def nms_bev(boxes, scores, thresh, pre_max_size=None, post_max_size=None,
     Returns:
         torch.Tensor: Indexes after NMS.
     """
-    assert boxes.size(1) == 5, 'Input boxes shape should be [N, 5]'
+    assert boxes.size(1) == 5, "Input boxes shape should be [N, 5]"
     order = scores.sort(0, descending=True)[1]
     if pre_max_size is not None:
         order = order[:pre_max_size]
@@ -255,9 +256,15 @@ def nms_bev(boxes, scores, thresh, pre_max_size=None, post_max_size=None,
     # note: better skip this step before nms_bev call in the future
     if xyxyr2xywhr:
         boxes = torch.stack(
-            ((boxes[:, 0] + boxes[:, 2]) / 2, (boxes[:, 1] + boxes[:, 3]) / 2,
-             boxes[:, 2] - boxes[:, 0], boxes[:, 3] - boxes[:, 1], boxes[:, 4]),
-            dim=-1)
+            (
+                (boxes[:, 0] + boxes[:, 2]) / 2,
+                (boxes[:, 1] + boxes[:, 3]) / 2,
+                boxes[:, 2] - boxes[:, 0],
+                boxes[:, 3] - boxes[:, 1],
+                boxes[:, 4],
+            ),
+            dim=-1,
+        )
 
     keep = nms_rotated(boxes, scores, thresh)[1]
     keep = order[keep]
