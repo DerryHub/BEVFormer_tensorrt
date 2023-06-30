@@ -15,8 +15,8 @@ using namespace nvinfer1;
 using namespace nvinfer1::plugin;
 
 namespace {
-constexpr char const *I_PLUGIN_VERSION{"1"};
-constexpr char const *I_PLUGIN_NAME{"InverseTRT"};
+constexpr char const *BP_PLUGIN_VERSION{"1"};
+constexpr char const *BP_PLUGIN_NAME{"InverseTRT"};
 } // namespace
 
 PluginFieldCollection InversePluginCreator::mFC{};
@@ -89,11 +89,11 @@ bool InversePlugin::supportsFormatCombination(
 }
 
 char const *InversePlugin::getPluginType() const noexcept {
-  return I_PLUGIN_NAME;
+  return BP_PLUGIN_NAME;
 }
 
 char const *InversePlugin::getPluginVersion() const noexcept {
-  return I_PLUGIN_VERSION;
+  return BP_PLUGIN_VERSION;
 }
 
 void InversePlugin::destroy() noexcept { delete this; }
@@ -159,11 +159,11 @@ InversePluginCreator::InversePluginCreator() {
 }
 
 char const *InversePluginCreator::getPluginName() const noexcept {
-  return I_PLUGIN_NAME;
+  return BP_PLUGIN_NAME;
 }
 
 char const *InversePluginCreator::getPluginVersion() const noexcept {
-  return I_PLUGIN_VERSION;
+  return BP_PLUGIN_VERSION;
 }
 
 PluginFieldCollection const *InversePluginCreator::getFieldNames() noexcept {

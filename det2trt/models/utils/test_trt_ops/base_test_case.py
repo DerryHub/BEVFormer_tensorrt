@@ -15,6 +15,8 @@ class BaseTestCase:
         params=None,
         device="cuda",
         delta=1e-5,
+        model_class=None,
+        model_kwargs=None
     ):
         assert "fp16" in func_name or "fp32" in func_name or "int8" in func_name
         self.int8_fp16 = False
@@ -23,6 +25,7 @@ class BaseTestCase:
         if "int8" in func_name and "fp16" in func_name:
             self.int8_fp16 = True
             self.int8 = True
+            self.fp16 = True
         elif "fp16" in func_name:
             self.fp16 = True
         elif "int8" in func_name:
@@ -38,9 +41,9 @@ class BaseTestCase:
         assert isinstance(params, list)
         module = TRT_FUNCTIONS.get(model_name)
         self.createInputs()
-        self.models = self.createModels(params, module, input_shapes, output_shapes)
+        self.models = self.createModels(params, module, input_shapes, output_shapes, model_class, model_kwargs)
 
-    def createModels(self, params, module, input_shapes, output_shapes):
+    def createModels(self, params, module, input_shapes, output_shapes, model_class, model_kwargs):
         models = []
         for param in params:
             dic = {"param": param}
@@ -50,9 +53,15 @@ class BaseTestCase:
                     input_shapes=input_shapes,
                     output_shapes=output_shapes,
                     fp16=self.fp16,
+                    int8=self.int8,
+                    model_class=model_class,
+                    model_kwargs=model_kwargs,
                     **param
                 )
-                dic["model_pth_fp16"] = model_fp16
+                if self.int8:
+                    dic["model_pth_int8"] = model_fp16
+                else:
+                    dic["model_pth_fp16"] = model_fp16
             else:
                 model_fp32 = createModel(
                     module,
@@ -60,6 +69,8 @@ class BaseTestCase:
                     output_shapes=output_shapes,
                     fp16=self.fp16,
                     int8=self.int8,
+                    model_class=model_class,
+                    model_kwargs=model_kwargs,
                     **param
                 )
                 if self.int8:
@@ -99,7 +110,21 @@ class BaseTestCase:
 
     def buildEngine(self, opset_version):
         for dic in self.models:
-            if self.fp16:
+            if self.int8:
+                calibrator = Calibrator(self.input_shapes)
+                calibrator.set_inputs(self.inputs_np_fp16 if self.int8_fp16 else self.inputs_np_int8,)
+
+                engine = pth2trt(
+                    dic["model_pth_int8"],
+                    self.inputs_pth_fp16 if self.int8_fp16 else self.inputs_pth_int8,
+                    opset_version=opset_version,
+                    int8=True,
+                    int8_fp16=self.int8_fp16,
+                    calibrator=calibrator,
+                )
+                dic["engine_int8"] = engine
+
+            elif self.fp16:
                 engine = pth2trt(
                     dic["model_pth_fp16"],
                     self.inputs_pth_fp16,
@@ -107,19 +132,6 @@ class BaseTestCase:
                     fp16=self.fp16,
                 )
                 dic["engine_fp16"] = engine
-            elif self.int8:
-                calibrator = Calibrator(self.input_shapes)
-                calibrator.set_inputs(self.inputs_np_int8)
-
-                engine = pth2trt(
-                    dic["model_pth_int8"],
-                    self.inputs_pth_int8,
-                    opset_version=opset_version,
-                    int8=True,
-                    int8_fp16=self.int8_fp16,
-                    calibrator=calibrator,
-                )
-                dic["engine_int8"] = engine
             else:
                 engine = pth2trt(
                     dic["model_pth_fp32"],

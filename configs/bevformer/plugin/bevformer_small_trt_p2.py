@@ -40,7 +40,7 @@ model = dict(
                     type="DetrTransformerDecoderLayer",
                     attn_cfgs=[
                         dict(
-                            type="MultiheadAttention",
+                            type="MultiheadAttentionTRT",
                             embed_dims={{_base_._dim_}},
                             num_heads=8,
                             dropout=0.1,

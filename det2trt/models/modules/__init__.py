@@ -8,3 +8,4 @@ from .spatial_cross_attention import (
 from .decoder import CustomMSDeformableAttentionTRT
 from .feedforward_network import FFNTRT
 from .cnn import *
+from .multi_head_attention import MultiheadAttentionTRT

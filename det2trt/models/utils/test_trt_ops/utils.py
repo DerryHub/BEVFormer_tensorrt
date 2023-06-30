@@ -52,38 +52,43 @@ class Calibrator(trt.IInt8MinMaxCalibrator):
 
 
 def createModel(
-    module, input_shapes, output_shapes, device="cuda", fp16=False, int8=False, **kwargs
+    module, input_shapes, output_shapes, device="cuda", fp16=False, int8=False, model_class=None, model_kwargs=None, **kwargs
 ):
     assert device in ["cuda", "cpu"]
     assert isinstance(input_shapes, dict) and isinstance(output_shapes, dict)
 
-    class Model(nn.Module):
-        def __init__(self):
-            super(Model, self).__init__()
-            self.input_shapes = input_shapes
-            self.output_shapes = output_shapes
-            self.module = module
-            self.kwargs = kwargs
-            self.expand = False
-            if int8:
-                assert len(output_shapes["output"]) in [3, 4]
-                if len(output_shapes["output"]) == 3:
-                    channel = output_shapes["output"][0]
-                    self.expand = True
-                else:
-                    channel = output_shapes["output"][1]
-                self.conv = nn.Conv2d(channel, channel, 1, groups=channel, bias=False)
-                self.conv.weight = nn.Parameter(torch.ones_like(self.conv.weight))
+    if model_class is None:
+        class Model(nn.Module):
+            def __init__(self):
+                super(Model, self).__init__()
+                self.module = module
+                self.kwargs = kwargs
+                self.expand = False
+                if int8:
+                    assert len(output_shapes["output"]) in [3, 4]
+                    if len(output_shapes["output"]) == 3:
+                        channel = output_shapes["output"][0]
+                        self.expand = True
+                    else:
+                        channel = output_shapes["output"][1]
+                    self.conv = nn.Conv2d(channel, channel, 1, groups=channel, bias=False)
+                    self.conv.weight = nn.Parameter(torch.ones_like(self.conv.weight))
 
-        def forward(self, *inputs):
-            output = self.module(*inputs, **self.kwargs)
-            if int8:
-                if self.expand:
-                    output = output.unsqueeze(0)
-                return self.conv(output)
-            return output
+            def forward(self, *inputs):
+                output = self.module(*inputs, **self.kwargs)
+                if int8:
+                    if self.expand:
+                        output = output.unsqueeze(0)
+                    return self.conv(output)
+                return output
 
-    model = Model().half() if fp16 else Model()
+        model = Model().half() if fp16 else Model()
+    else:
+        model_kwargs = {} if model_kwargs is None else model_kwargs
+        model = model_class(**model_kwargs).half() if fp16 else model_class(**model_kwargs)
+    model.eval()
+    model.input_shapes = input_shapes
+    model.output_shapes = output_shapes
     return model.to(torch.device(device))
 
 
@@ -103,6 +108,7 @@ def build_engine(
     ) as parser, trt.Runtime(
         TRT_LOGGER
     ) as runtime:
+        config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
         # max_workspace_size GB
         config.set_memory_pool_limit(
             trt.MemoryPoolType.WORKSPACE, (1 << 32) * max_workspace_size
@@ -140,7 +146,7 @@ def pth2trt(
     args = tuple([inputs[key] for key in inputs.keys()])
     try:
         torch.onnx.export(
-            module.float(),
+            module.half() if fp16 or int8_fp16 else module.float(),
             args,
             path,
             input_names=list(inputs.keys()),
