@@ -8,6 +8,7 @@
 #include <mma.h>
 #include <cmath>
 #include <cuda/std/limits>
+#include <unistd.h>
 
 #define TC_SIZE 16
 #define WARP_SIZE 32
@@ -750,6 +751,447 @@ template <> __forceinline__ __device__ int8_t T2int8(__half a) {
 }
 
 
+#if __CUDA_ARCH__ >= 800
+template <int HEAD_DIM, int BASE_SEQ_LEN>
+__global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const float scale_q, const int8_4 * __restrict__ key, const float scale_k, const int8_4 * __restrict__ value, const float scale_v, const float sqrt_d, int8_4 * output, const float scale_o, const int KV_LEN) {
+    static_assert(BASE_SEQ_LEN % TC_SIZE == 0 && HEAD_DIM % TC_SIZE == 0 && BASE_SEQ_LEN >= HEAD_DIM, "");
+    constexpr int NUM_WARPS = BASE_SEQ_LEN / TC_SIZE;
+    constexpr int NUM_HEAD_WARPS = HEAD_DIM / TC_SIZE;
+    constexpr int NUM_WARPS_MAX = NUM_WARPS > NUM_HEAD_WARPS ? NUM_WARPS : NUM_HEAD_WARPS;
+
+    const unsigned int batch = blockIdx.y;
+    const unsigned int Q_LEN = gridDim.x * BASE_SEQ_LEN;
+    const unsigned int q_start = blockIdx.x * BASE_SEQ_LEN;
+    const unsigned int tid = threadIdx.x;
+    const unsigned int warp_id = tid / WARP_SIZE;
+    const unsigned int lane_id = tid % WARP_SIZE;
+
+    const unsigned int mem_lane_id_x = lane_id % 4;
+    const unsigned int mem_lane_id_y = lane_id / 4;
+
+    const float scale_qkv = scale_v * __frcp_rn(127.f);
+    const __half2 scale_softmax_re = __float2half2_rn(127.f);
+    const __half2 scale_o_re = __float2half2_rn(__frcp_rn(scale_o));
+
+    int8_4 query_ma[NUM_HEAD_WARPS*2];
+    int8_4 key_mb[NUM_WARPS_MAX*2];
+    auto softmax_ma = reinterpret_cast<int8_t*>(key_mb);
+    int8_4 value_mb[NUM_WARPS*2];
+    __half out_h[NUM_HEAD_WARPS*8] = {0.f};
+    auto out_h2 = reinterpret_cast<__half2*>(out_h);
+    auto out_i82 = reinterpret_cast<int8_2*>(out_h);
+
+    __half2 thread_max_old = __half2half2(-cuda::std::numeric_limits<__half>::infinity());
+    __half2 thread_sum_old = __float2half2_rn(0.f);
+
+    const int8_4 *query_ptr = query + (batch * Q_LEN + q_start + warp_id * TC_SIZE) * HEAD_DIM / 4;
+    auto output_ptr = reinterpret_cast<int8_2*>(output + (batch * Q_LEN + q_start + warp_id * TC_SIZE) * HEAD_DIM / 4);
+
+#pragma unroll
+    for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+        query_ma[head_id*2+0] = *(query_ptr + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+        query_ma[head_id*2+1] = *(query_ptr + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+    }
+#pragma unroll
+    for (int kv_start = 0; kv_start < KV_LEN; kv_start += BASE_SEQ_LEN) {
+        const int8_4 *key_ptr = key + (batch * KV_LEN + kv_start) * HEAD_DIM / 4;
+
+        int32_t mc[NUM_WARPS_MAX * 8] = {0};
+        auto mc_f = reinterpret_cast<float*>(mc);
+        auto mc_f2 = reinterpret_cast<float2*>(mc);
+        auto mc_h = reinterpret_cast<__half*>(mc);
+        auto mc_h2 = reinterpret_cast<__half2*>(mc);
+
+        __half2 thread_max = __half2half2(-cuda::std::numeric_limits<__half>::infinity());
+        __half2 thread_sum = __float2half2_rn(0.f);
+
+#pragma unroll
+        for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+#pragma unroll
+            for(int k_i=0; k_i<NUM_WARPS; k_i++) {
+                key_mb[head_id*2+0] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+                key_mb[head_id*2+1] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+#pragma unroll
+                for (int j=0; j<2; j++) {
+                    asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 "
+                        " { %0, %1, %2, %3 }, "
+                        " { %4, %5 }, "
+                        " { %6 }, "
+                        " { %7, %8, %9, %10 }; "
+                        : "=r"(mc[k_i * 8 + j * 2 + 0]), "=r"(mc[k_i * 8 + j * 2 + 1]), "=r"(mc[k_i * 8 + j * 2 + 4]), "=r"(mc[k_i * 8 + j * 2 + 5])
+                        : "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2])), "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+1])), "r"(*reinterpret_cast<uint32_t*>(&key_mb[head_id*2+j])), "r"(mc[k_i * 8 + j * 2 + 0]), "r"(mc[k_i * 8 + j * 2 + 1]), "r"(mc[k_i * 8 + j * 2 + 4]), "r"(mc[k_i * 8 + j * 2 + 5])
+                        );
+                }
+            }
+        }
+
+#pragma unroll
+        for (int i=0; i<NUM_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<8; j++) {
+                mc_f[i * 8 + j] = mc[i * 8 + j] * sqrt_d;
+            }
+#pragma unroll
+            for (int j=0; j<4; j++) {
+                mc_h2[i * 4 + j] = __float22half2_rn(mc_f2[i * 4 + j]);
+            }
+
+            thread_max = hmax(thread_max, hmax(hmax(__halves2half2(mc_h[i * 8 + 0], mc_h[i * 8 + 4]), __halves2half2(mc_h[i * 8 + 1], mc_h[i * 8 + 5])), hmax(__halves2half2(mc_h[i * 8 + 2], mc_h[i * 8 + 6]), __halves2half2(mc_h[i * 8 + 3], mc_h[i * 8 + 7]))));
+        }
+
+#pragma unroll
+        for (int s = 2; s > 0; s >>= 1) {
+            thread_max = hmax(thread_max, __shfl_xor_sync(0xffffffff, thread_max, s, 4));
+        }
+
+#pragma unroll
+        for (int i=0; i<NUM_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<2; j++) {
+                mc_h2[i * 4 + j] = h2exp(__hsub2(mc_h2[i * 4 + j], __low2half2(thread_max)));
+                mc_h2[i * 4 + j + 2] = h2exp(__hsub2(mc_h2[i * 4 + j + 2], __high2half2(thread_max)));
+
+                thread_sum = __hadd2(thread_sum, __hadd2(__halves2half2(__high2half(mc_h2[i * 4 + j]), __high2half(mc_h2[i * 4 + j + 2])), __halves2half2(__low2half(mc_h2[i * 4 + j]), __low2half(mc_h2[i * 4 + j + 2]))));
+
+                mc_h2[i * 4 + j] = __hmul2(mc_h2[i * 4 + j], scale_softmax_re);
+                mc_h2[i * 4 + j + 2] = __hmul2(mc_h2[i * 4 + j + 2], scale_softmax_re);
+                softmax_ma[i*8+j*2+0] = T2int8(__low2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+1] = T2int8(__high2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+4] = T2int8(__low2half(mc_h2[i * 4 + j + 2]));
+                softmax_ma[i*8+j*2+5] = T2int8(__high2half(mc_h2[i * 4 + j + 2]));
+            }
+        }
+
+#pragma unroll
+        for (int s = 2; s > 0; s >>= 1) {
+            thread_sum = __hadd2(thread_sum, __shfl_xor_sync(0xffffffff, thread_sum, s, 4));
+        }
+
+#pragma unroll
+        for (int i=0; i<NUM_HEAD_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<8; j++) {
+                mc[i * 8 + j] = 0;
+            }
+        }
+
+        int8_4 val;
+        const int8_t *value_ptr = reinterpret_cast<const int8_t*>(value) + batch * KV_LEN * HEAD_DIM + kv_start * HEAD_DIM + mem_lane_id_y + mem_lane_id_x * 2 * HEAD_DIM;
+#pragma unroll
+        for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+#pragma unroll
+            for (int v_i = 0; v_i < NUM_WARPS; v_i++) {
+                val.x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM);
+                val.y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM);
+                val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2);
+                val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM);
+
+                asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 "
+                    " { %0, %1, %2, %3 }, "
+                    " { %4, %5 }, "
+                    " { %6 }, "
+                    " { %7, %8, %9, %10 }; "
+                        : "=r"(mc[head_id * 8 + 0]), "=r"(mc[head_id * 8 + 1]), "=r"(mc[head_id * 8 + 4]), "=r"(mc[head_id * 8 + 5])
+                        : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 0]), "r"(mc[head_id * 8 + 1]), "r"(mc[head_id * 8 + 4]), "r"(mc[head_id * 8 + 5])
+                        );
+
+                val.x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE / 2);
+                val.y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM + TC_SIZE / 2);
+                val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + TC_SIZE / 2);
+                val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM + TC_SIZE / 2);
+
+                asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 "
+                    " { %0, %1, %2, %3 }, "
+                    " { %4, %5 }, "
+                    " { %6 }, "
+                    " { %7, %8, %9, %10 }; "
+                        : "=r"(mc[head_id * 8 + 2]), "=r"(mc[head_id * 8 + 3]), "=r"(mc[head_id * 8 + 6]), "=r"(mc[head_id * 8 + 7])
+                        : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 2]), "r"(mc[head_id * 8 + 3]), "r"(mc[head_id * 8 + 6]), "r"(mc[head_id * 8 + 7])
+                        );
+            }
+            value_ptr += TC_SIZE;
+        }
+
+        __half2 thread_max_new = hmax(thread_max_old, thread_max);
+        __half2 exp_max_old = h2exp(__hsub2(thread_max_old, thread_max_new));
+        __half2 exp_max = h2exp(__hsub2(thread_max, thread_max_new));
+        __half2 thread_sum_new = __hadd2(__hmul2(exp_max_old, thread_sum_old), __hmul2(exp_max, thread_sum));
+        exp_max_old = __hmul2(thread_sum_old, exp_max_old);
+
+        __half2 exp_max_low = __low2half2(exp_max);
+        __half2 exp_max_high = __high2half2(exp_max);
+        __half2 exp_max_old_low = __low2half2(exp_max_old);
+        __half2 exp_max_old_high = __high2half2(exp_max_old);
+        __half2 thread_sum_new_low = __low2half2(thread_sum_new);
+        __half2 thread_sum_new_high = __high2half2(thread_sum_new);
+
+#pragma unroll
+        for (int i=0; i<NUM_HEAD_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<8; j++) {
+                mc_f[i*8+j] = mc[i*8+j] * scale_qkv;
+                if (j % 2 == 1) {
+                    mc_h2[i * 4 + j/2] = __float22half2_rn(mc_f2[i * 4 + j/2]);
+                }
+            }
+#pragma unroll
+            for (int j=0; j<2; j++) {
+                out_h2[i*4+j] = __h2div(__hfma2(exp_max_low, mc_h2[i * 4 + j], __hmul2(exp_max_old_low, out_h2[i*4+j])), thread_sum_new_low);
+                out_h2[i*4+j+2] = __h2div(__hfma2(exp_max_high, mc_h2[i * 4 + j+2], __hmul2(exp_max_old_high, out_h2[i*4+j+2])), thread_sum_new_high);
+            }
+        }
+        thread_sum_old = thread_sum_new;
+        thread_max_old = thread_max_new;
+    }
+
+#pragma unroll
+    for (int i=0; i<NUM_HEAD_WARPS; i++) {
+#pragma unroll
+        for (int j = 0; j < 4; j++) {
+            out_h2[i*4+j] = __hmul2(out_h2[i*4+j], scale_o_re);
+            out_i82[i*4+j].x = T2int8(out_h2[i*4+j].x);
+            out_i82[i*4+j].y = T2int8(out_h2[i*4+j].y);
+        }
+
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x] = out_i82[i*4+0];
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x + 4] = out_i82[i*4+1];
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x + TC_SIZE * HEAD_DIM / 4] = out_i82[i*4+2];
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x + TC_SIZE * HEAD_DIM / 4 + 4] = out_i82[i*4+3];
+
+        output_ptr += TC_SIZE / 2;
+    }
+}
+#elif __CUDA_ARCH__ >= 750
+template <int HEAD_DIM, int BASE_SEQ_LEN>
+__global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const float scale_q, const int8_4 * __restrict__ key, const float scale_k, const int8_4 * __restrict__ value, const float scale_v, const float sqrt_d, int8_4 * output, const float scale_o, const int KV_LEN) {
+    static_assert(BASE_SEQ_LEN % TC_SIZE == 0 && HEAD_DIM % TC_SIZE == 0 && BASE_SEQ_LEN >= HEAD_DIM, "");
+    constexpr int NUM_WARPS = BASE_SEQ_LEN / TC_SIZE;
+    constexpr int NUM_HEAD_WARPS = HEAD_DIM / TC_SIZE;
+    constexpr int NUM_WARPS_MAX = NUM_WARPS > NUM_HEAD_WARPS ? NUM_WARPS : NUM_HEAD_WARPS;
+
+    const unsigned int batch = blockIdx.y;
+    const unsigned int Q_LEN = gridDim.x * BASE_SEQ_LEN;
+    const unsigned int q_start = blockIdx.x * BASE_SEQ_LEN;
+    const unsigned int tid = threadIdx.x;
+    const unsigned int warp_id = tid / WARP_SIZE;
+    const unsigned int lane_id = tid % WARP_SIZE;
+
+    const unsigned int mem_lane_id_x = lane_id % 4;
+    const unsigned int mem_lane_id_y = lane_id / 4;
+
+    const float scale_qkv = scale_v * __frcp_rn(127.f);
+    const __half2 scale_softmax_re = __float2half2_rn(127.f);
+    const __half2 scale_o_re = __float2half2_rn(__frcp_rn(scale_o));
+
+    int8_4 query_ma[NUM_HEAD_WARPS*2];
+    int8_4 key_mb[NUM_WARPS_MAX*2];
+    auto softmax_ma = reinterpret_cast<int8_t*>(key_mb);
+    int8_4 value_mb[NUM_WARPS*2];
+    __half out_h[NUM_HEAD_WARPS*8] = {0.f};
+    auto out_h2 = reinterpret_cast<__half2*>(out_h);
+    auto out_i82 = reinterpret_cast<int8_2*>(out_h);
+
+    __half2 thread_max_old = __half2half2(-cuda::std::numeric_limits<__half>::infinity());
+    __half2 thread_sum_old = __float2half2_rn(0.f);
+
+    const int8_4 *query_ptr = query + (batch * Q_LEN + q_start + warp_id * TC_SIZE) * HEAD_DIM / 4;
+    auto output_ptr = reinterpret_cast<int8_2*>(output + (batch * Q_LEN + q_start + warp_id * TC_SIZE) * HEAD_DIM / 4);
+
+#pragma unroll
+    for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+        query_ma[head_id*2+0] = *(query_ptr + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+        query_ma[head_id*2+1] = *(query_ptr + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+    }
+#pragma unroll
+    for (int kv_start = 0; kv_start < KV_LEN; kv_start += BASE_SEQ_LEN) {
+        const int8_4 *key_ptr = key + (batch * KV_LEN + kv_start) * HEAD_DIM / 4;
+
+        int32_t mc[NUM_WARPS_MAX * 8] = {0};
+        auto mc_f = reinterpret_cast<float*>(mc);
+        auto mc_f2 = reinterpret_cast<float2*>(mc);
+        auto mc_h = reinterpret_cast<__half*>(mc);
+        auto mc_h2 = reinterpret_cast<__half2*>(mc);
+
+        __half2 thread_max = __half2half2(-cuda::std::numeric_limits<__half>::infinity());
+        __half2 thread_sum = __float2half2_rn(0.f);
+
+#pragma unroll
+        for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+#pragma unroll
+            for(int k_i=0; k_i<NUM_WARPS; k_i++) {
+                key_mb[head_id*2+0] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+                key_mb[head_id*2+1] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+#pragma unroll
+                for (int i=0; i<2; i++) {
+#pragma unroll
+                    for (int j=0; j<2; j++) {
+                        asm(
+                                "mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                                " { %0, %1 }, "
+                                " { %2 }, "
+                                " { %3 }, "
+                                " { %4, %5 }; "
+                                : "=r"(mc[k_i * 8 + i * 4 + j * 2 + 0]), "=r"(mc[k_i * 8 + i * 4 + j * 2 + 1])
+                                : "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+i])), "r"(*reinterpret_cast<uint32_t*>(&key_mb[head_id*2+j])), "r"(mc[k_i * 8 + i * 4 + j * 2 + 0]), "r"(mc[k_i * 8 + i * 4 + j * 2 + 1])
+                                );
+                    }
+                }
+            }
+        }
+
+#pragma unroll
+        for (int i=0; i<NUM_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<8; j++) {
+                mc_f[i * 8 + j] = mc[i * 8 + j] * sqrt_d;
+            }
+#pragma unroll
+            for (int j=0; j<4; j++) {
+                mc_h2[i * 4 + j] = __float22half2_rn(mc_f2[i * 4 + j]);
+            }
+
+            thread_max = hmax(thread_max, hmax(hmax(__halves2half2(mc_h[i * 8 + 0], mc_h[i * 8 + 4]), __halves2half2(mc_h[i * 8 + 1], mc_h[i * 8 + 5])), hmax(__halves2half2(mc_h[i * 8 + 2], mc_h[i * 8 + 6]), __halves2half2(mc_h[i * 8 + 3], mc_h[i * 8 + 7]))));
+        }
+
+#pragma unroll
+        for (int s = 2; s > 0; s >>= 1) {
+            thread_max = hmax(thread_max, __shfl_xor_sync(0xffffffff, thread_max, s, 4));
+        }
+
+#pragma unroll
+        for (int i=0; i<NUM_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<2; j++) {
+                mc_h2[i * 4 + j] = h2exp(__hsub2(mc_h2[i * 4 + j], __low2half2(thread_max)));
+                mc_h2[i * 4 + j + 2] = h2exp(__hsub2(mc_h2[i * 4 + j + 2], __high2half2(thread_max)));
+
+                thread_sum = __hadd2(thread_sum, __hadd2(__halves2half2(__high2half(mc_h2[i * 4 + j]), __high2half(mc_h2[i * 4 + j + 2])), __halves2half2(__low2half(mc_h2[i * 4 + j]), __low2half(mc_h2[i * 4 + j + 2]))));
+
+                mc_h2[i * 4 + j] = __hmul2(mc_h2[i * 4 + j], scale_softmax_re);
+                mc_h2[i * 4 + j + 2] = __hmul2(mc_h2[i * 4 + j + 2], scale_softmax_re);
+                softmax_ma[i*8+j*2+0] = T2int8(__low2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+1] = T2int8(__high2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+4] = T2int8(__low2half(mc_h2[i * 4 + j + 2]));
+                softmax_ma[i*8+j*2+5] = T2int8(__high2half(mc_h2[i * 4 + j + 2]));
+            }
+        }
+
+#pragma unroll
+        for (int s = 2; s > 0; s >>= 1) {
+            thread_sum = __hadd2(thread_sum, __shfl_xor_sync(0xffffffff, thread_sum, s, 4));
+        }
+
+#pragma unroll
+        for (int i=0; i<NUM_HEAD_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<8; j++) {
+                mc[i * 8 + j] = 0;
+            }
+        }
+
+        int8_4 val;
+        const int8_t *value_ptr = reinterpret_cast<const int8_t*>(value) + batch * KV_LEN * HEAD_DIM + kv_start * HEAD_DIM + mem_lane_id_y + mem_lane_id_x * 2 * HEAD_DIM;
+#pragma unroll
+        for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+#pragma unroll
+            for (int v_i = 0; v_i < NUM_WARPS; v_i++) {
+                val.x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM);
+                val.y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM);
+                val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2);
+                val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM);
+
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                    " { %0, %1 }, "
+                    " { %2 }, "
+                    " { %3 }, "
+                    " { %4, %5 }; "
+                    : "=r"(mc[head_id * 8 + 0]), "=r"(mc[head_id * 8 + 1])
+                    : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 0]), "r"(mc[head_id * 8 + 1])
+                    );
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                    " { %0, %1 }, "
+                    " { %2 }, "
+                    " { %3 }, "
+                    " { %4, %5 }; "
+                    : "=r"(mc[head_id * 8 + 4]), "=r"(mc[head_id * 8 + 5])
+                    : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 4]), "r"(mc[head_id * 8 + 5])
+                    );
+
+                val.x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE / 2);
+                val.y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM + TC_SIZE / 2);
+                val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + TC_SIZE / 2);
+                val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM + TC_SIZE / 2);
+
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                    " { %0, %1 }, "
+                    " { %2 }, "
+                    " { %3 }, "
+                    " { %4, %5 }; "
+                    : "=r"(mc[head_id * 8 + 2]), "=r"(mc[head_id * 8 + 3])
+                    : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 2]), "r"(mc[head_id * 8 + 3])
+                    );
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                    " { %0, %1 }, "
+                    " { %2 }, "
+                    " { %3 }, "
+                    " { %4, %5 }; "
+                    : "=r"(mc[head_id * 8 + 6]), "=r"(mc[head_id * 8 + 7])
+                    : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 6]), "r"(mc[head_id * 8 + 7])
+                    );
+            }
+            value_ptr += TC_SIZE;
+        }
+
+        __half2 thread_max_new = hmax(thread_max_old, thread_max);
+        __half2 exp_max_old = h2exp(__hsub2(thread_max_old, thread_max_new));
+        __half2 exp_max = h2exp(__hsub2(thread_max, thread_max_new));
+        __half2 thread_sum_new = __hadd2(__hmul2(exp_max_old, thread_sum_old), __hmul2(exp_max, thread_sum));
+        exp_max_old = __hmul2(thread_sum_old, exp_max_old);
+
+        __half2 exp_max_low = __low2half2(exp_max);
+        __half2 exp_max_high = __high2half2(exp_max);
+        __half2 exp_max_old_low = __low2half2(exp_max_old);
+        __half2 exp_max_old_high = __high2half2(exp_max_old);
+        __half2 thread_sum_new_low = __low2half2(thread_sum_new);
+        __half2 thread_sum_new_high = __high2half2(thread_sum_new);
+
+#pragma unroll
+        for (int i=0; i<NUM_HEAD_WARPS; i++) {
+#pragma unroll
+            for (int j=0; j<8; j++) {
+                mc_f[i*8+j] = mc[i*8+j] * scale_qkv;
+                if (j % 2 == 1) {
+                    mc_h2[i * 4 + j/2] = __float22half2_rn(mc_f2[i * 4 + j/2]);
+                }
+            }
+#pragma unroll
+            for (int j=0; j<2; j++) {
+                out_h2[i*4+j] = __h2div(__hfma2(exp_max_low, mc_h2[i * 4 + j], __hmul2(exp_max_old_low, out_h2[i*4+j])), thread_sum_new_low);
+                out_h2[i*4+j+2] = __h2div(__hfma2(exp_max_high, mc_h2[i * 4 + j+2], __hmul2(exp_max_old_high, out_h2[i*4+j+2])), thread_sum_new_high);
+            }
+        }
+        thread_sum_old = thread_sum_new;
+        thread_max_old = thread_max_new;
+    }
+
+#pragma unroll
+    for (int i=0; i<NUM_HEAD_WARPS; i++) {
+#pragma unroll
+        for (int j = 0; j < 4; j++) {
+            out_h2[i*4+j] = __hmul2(out_h2[i*4+j], scale_o_re);
+            out_i82[i*4+j].x = T2int8(out_h2[i*4+j].x);
+            out_i82[i*4+j].y = T2int8(out_h2[i*4+j].y);
+        }
+
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x] = out_i82[i*4+0];
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x + 4] = out_i82[i*4+1];
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x + TC_SIZE * HEAD_DIM / 4] = out_i82[i*4+2];
+        output_ptr[mem_lane_id_y * HEAD_DIM / 2 + mem_lane_id_x + TC_SIZE * HEAD_DIM / 4 + 4] = out_i82[i*4+3];
+
+        output_ptr += TC_SIZE / 2;
+    }
+}
+#else
 template <int HEAD_DIM, int BASE_SEQ_LEN>
 __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const float scale_q, const int8_4 * __restrict__ key, const float scale_k, const int8_4 * __restrict__ value, const float scale_v, const float sqrt_d, int8_4 * output, const float scale_o, const int KV_LEN) {
     static_assert(BASE_SEQ_LEN % TC_SIZE == 0 && HEAD_DIM % TC_SIZE == 0 && BASE_SEQ_LEN >= HEAD_DIM, "");
@@ -1034,6 +1476,7 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
         }
     }
 }
+#endif
 
 template <typename T>
 int qkv_flash(const T * query, const T * key, const T *value, T *output, const int &batch, const int &q_len, const int &kv_len, const int &embed_dim, cudaStream_t stream) {
