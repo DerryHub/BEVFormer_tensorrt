@@ -750,6 +750,18 @@ template <> __forceinline__ __device__ int8_t T2int8(__half a) {
     return int8_t(__half2int_rn(a));
 }
 
+template <typename T> __forceinline__ __device__ uint8_t T2uint8(T a) {
+    a = a > 255 ? 255 : a;
+    a = a < 0 ? 0 : a;
+    return uint8_t(a + 0.5);
+}
+
+template <> __forceinline__ __device__ uint8_t T2uint8(__half a) {
+    a = __hgt(a, __int2half_rn(255)) ? __int2half_rn(255) : a;
+    a = __hlt(a, __int2half_rn(0)) ? __int2half_rn(0) : a;
+    return uint8_t(__half2int_rn(a));
+}
+
 
 #if __CUDA_ARCH__ >= 800
 template <int HEAD_DIM, int BASE_SEQ_LEN>
@@ -769,13 +781,13 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
     const unsigned int mem_lane_id_x = lane_id % 4;
     const unsigned int mem_lane_id_y = lane_id / 4;
 
-    const float scale_qkv = scale_v * __frcp_rn(127.f);
-    const __half2 scale_softmax_re = __float2half2_rn(127.f);
+    const float scale_qkv = scale_v * __frcp_rn(255.f);
+    const __half2 scale_softmax_re = __float2half2_rn(255.f);
     const __half2 scale_o_re = __float2half2_rn(__frcp_rn(scale_o));
 
     int8_4 query_ma[NUM_HEAD_WARPS*2];
-    int8_4 key_mb[NUM_WARPS_MAX*2];
-    auto softmax_ma = reinterpret_cast<int8_t*>(key_mb);
+    int8_4 key_mb[2];
+    uint8_t softmax_ma[NUM_WARPS*8];
     int8_4 value_mb[NUM_WARPS*2];
     __half out_h[NUM_HEAD_WARPS*8] = {0.f};
     auto out_h2 = reinterpret_cast<__half2*>(out_h);
@@ -806,20 +818,22 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
         __half2 thread_sum = __float2half2_rn(0.f);
 
 #pragma unroll
-        for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
+        for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id+=2) {
 #pragma unroll
             for(int k_i=0; k_i<NUM_WARPS; k_i++) {
-                key_mb[head_id*2+0] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
-                key_mb[head_id*2+1] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
 #pragma unroll
                 for (int j=0; j<2; j++) {
-                    asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 "
+                    key_mb[0] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + j * TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+                    key_mb[1] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + (head_id + 1) * TC_SIZE / 4 + j * TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+                    asm("mma.sync.aligned.m16n8k32.row.col.s32.s8.s8.s32 "
                         " { %0, %1, %2, %3 }, "
-                        " { %4, %5 }, "
-                        " { %6 }, "
-                        " { %7, %8, %9, %10 }; "
+                        " { %4, %5, %6, %7 }, "
+                        " { %8, %9 }, "
+                        " { %10, %11, %12, %13 }; "
                         : "=r"(mc[k_i * 8 + j * 2 + 0]), "=r"(mc[k_i * 8 + j * 2 + 1]), "=r"(mc[k_i * 8 + j * 2 + 4]), "=r"(mc[k_i * 8 + j * 2 + 5])
-                        : "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2])), "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+1])), "r"(*reinterpret_cast<uint32_t*>(&key_mb[head_id*2+j])), "r"(mc[k_i * 8 + j * 2 + 0]), "r"(mc[k_i * 8 + j * 2 + 1]), "r"(mc[k_i * 8 + j * 2 + 4]), "r"(mc[k_i * 8 + j * 2 + 5])
+                        : "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+0])), "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+1])), "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+2])), "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+3])),
+                        "r"(*reinterpret_cast<uint32_t*>(&key_mb[0])), "r"(*reinterpret_cast<uint32_t*>(&key_mb[1])),
+                        "r"(mc[k_i * 8 + j * 2 + 0]), "r"(mc[k_i * 8 + j * 2 + 1]), "r"(mc[k_i * 8 + j * 2 + 4]), "r"(mc[k_i * 8 + j * 2 + 5])
                         );
                 }
             }
@@ -855,10 +869,10 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
 
                 mc_h2[i * 4 + j] = __hmul2(mc_h2[i * 4 + j], scale_softmax_re);
                 mc_h2[i * 4 + j + 2] = __hmul2(mc_h2[i * 4 + j + 2], scale_softmax_re);
-                softmax_ma[i*8+j*2+0] = T2int8(__low2half(mc_h2[i * 4 + j]));
-                softmax_ma[i*8+j*2+1] = T2int8(__high2half(mc_h2[i * 4 + j]));
-                softmax_ma[i*8+j*2+4] = T2int8(__low2half(mc_h2[i * 4 + j + 2]));
-                softmax_ma[i*8+j*2+5] = T2int8(__high2half(mc_h2[i * 4 + j + 2]));
+                softmax_ma[i*8+j*2+0] = T2uint8(__low2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+1] = T2uint8(__high2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+4] = T2uint8(__low2half(mc_h2[i * 4 + j + 2]));
+                softmax_ma[i*8+j*2+5] = T2uint8(__high2half(mc_h2[i * 4 + j + 2]));
             }
         }
 
@@ -875,38 +889,50 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
             }
         }
 
-        int8_4 val;
+        int8_4* val = key_mb;
         const int8_t *value_ptr = reinterpret_cast<const int8_t*>(value) + batch * KV_LEN * HEAD_DIM + kv_start * HEAD_DIM + mem_lane_id_y + mem_lane_id_x * 2 * HEAD_DIM;
 #pragma unroll
         for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
 #pragma unroll
-            for (int v_i = 0; v_i < NUM_WARPS; v_i++) {
-                val.x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM);
-                val.y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM);
-                val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2);
-                val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM);
+            for (int v_i = 0; v_i < NUM_WARPS; v_i+=2) {
+                val[0].x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM);
+                val[0].y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM);
+                val[0].z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2);
+                val[0].w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM);
+                val[1].x = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM);
+                val[1].y = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + HEAD_DIM);
+                val[1].z = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2);
+                val[1].w = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM);
 
-                asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 "
+                asm("mma.sync.aligned.m16n8k32.row.col.s32.u8.s8.s32 "
                     " { %0, %1, %2, %3 }, "
-                    " { %4, %5 }, "
-                    " { %6 }, "
-                    " { %7, %8, %9, %10 }; "
+                    " { %4, %5, %6, %7 }, "
+                    " { %8, %9 }, "
+                    " { %10, %11, %12, %13 }; "
                         : "=r"(mc[head_id * 8 + 0]), "=r"(mc[head_id * 8 + 1]), "=r"(mc[head_id * 8 + 4]), "=r"(mc[head_id * 8 + 5])
-                        : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 0]), "r"(mc[head_id * 8 + 1]), "r"(mc[head_id * 8 + 4]), "r"(mc[head_id * 8 + 5])
+                        : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+8])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+12])),
+                        "r"(*reinterpret_cast<uint32_t*>(val)), "r"(*reinterpret_cast<uint32_t*>(val+1)),
+                        "r"(mc[head_id * 8 + 0]), "r"(mc[head_id * 8 + 1]), "r"(mc[head_id * 8 + 4]), "r"(mc[head_id * 8 + 5])
                         );
 
-                val.x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE / 2);
-                val.y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM + TC_SIZE / 2);
-                val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + TC_SIZE / 2);
-                val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM + TC_SIZE / 2);
+                val[0].x = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE / 2);
+                val[0].y = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + HEAD_DIM + TC_SIZE / 2);
+                val[0].z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + TC_SIZE / 2);
+                val[0].w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM + TC_SIZE / 2);
+                val[1].x = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + TC_SIZE / 2);
+                val[1].y = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + HEAD_DIM + TC_SIZE / 2);
+                val[1].z = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + TC_SIZE / 2);
+                val[1].w = *(value_ptr + (v_i + 1) * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM + TC_SIZE / 2);
 
-                asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 "
+                asm("mma.sync.aligned.m16n8k32.row.col.s32.u8.s8.s32 "
                     " { %0, %1, %2, %3 }, "
-                    " { %4, %5 }, "
-                    " { %6 }, "
-                    " { %7, %8, %9, %10 }; "
+                    " { %4, %5, %6, %7 }, "
+                    " { %8, %9 }, "
+                    " { %10, %11, %12, %13 }; "
                         : "=r"(mc[head_id * 8 + 2]), "=r"(mc[head_id * 8 + 3]), "=r"(mc[head_id * 8 + 6]), "=r"(mc[head_id * 8 + 7])
-                        : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 2]), "r"(mc[head_id * 8 + 3]), "r"(mc[head_id * 8 + 6]), "r"(mc[head_id * 8 + 7])
+                        : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+4])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+8])), "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+12])),
+                        "r"(*reinterpret_cast<uint32_t*>(val)), "r"(*reinterpret_cast<uint32_t*>(val+1)),
+                        "r"(mc[head_id * 8 + 2]), "r"(mc[head_id * 8 + 3]), "r"(mc[head_id * 8 + 6]), "r"(mc[head_id * 8 + 7])
                         );
             }
             value_ptr += TC_SIZE;
@@ -979,13 +1005,13 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
     const unsigned int mem_lane_id_x = lane_id % 4;
     const unsigned int mem_lane_id_y = lane_id / 4;
 
-    const float scale_qkv = scale_v * __frcp_rn(127.f);
-    const __half2 scale_softmax_re = __float2half2_rn(127.f);
+    const float scale_qkv = scale_v * __frcp_rn(255.f);
+    const __half2 scale_softmax_re = __float2half2_rn(255.f);
     const __half2 scale_o_re = __float2half2_rn(__frcp_rn(scale_o));
 
     int8_4 query_ma[NUM_HEAD_WARPS*2];
-    int8_4 key_mb[NUM_WARPS_MAX*2];
-    auto softmax_ma = reinterpret_cast<int8_t*>(key_mb);
+    int8_4 key_mb[2];
+    uint8_t softmax_ma[NUM_WARPS*8];
     int8_4 value_mb[NUM_WARPS*2];
     __half out_h[NUM_HEAD_WARPS*8] = {0.f};
     auto out_h2 = reinterpret_cast<__half2*>(out_h);
@@ -1019,8 +1045,8 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
         for (int head_id=0; head_id<NUM_HEAD_WARPS; head_id++) {
 #pragma unroll
             for(int k_i=0; k_i<NUM_WARPS; k_i++) {
-                key_mb[head_id*2+0] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
-                key_mb[head_id*2+1] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+                key_mb[0] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
+                key_mb[1] = *(key_ptr + k_i * HEAD_DIM * TC_SIZE / 4 + head_id * TC_SIZE / 4 + TC_SIZE * HEAD_DIM / 8 + mem_lane_id_y * HEAD_DIM / 4 + mem_lane_id_x);
 #pragma unroll
                 for (int i=0; i<2; i++) {
 #pragma unroll
@@ -1032,7 +1058,7 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
                                 " { %3 }, "
                                 " { %4, %5 }; "
                                 : "=r"(mc[k_i * 8 + i * 4 + j * 2 + 0]), "=r"(mc[k_i * 8 + i * 4 + j * 2 + 1])
-                                : "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+i])), "r"(*reinterpret_cast<uint32_t*>(&key_mb[head_id*2+j])), "r"(mc[k_i * 8 + i * 4 + j * 2 + 0]), "r"(mc[k_i * 8 + i * 4 + j * 2 + 1])
+                                : "r"(*reinterpret_cast<uint32_t*>(&query_ma[head_id*2+i])), "r"(*reinterpret_cast<uint32_t*>(&key_mb[j])), "r"(mc[k_i * 8 + i * 4 + j * 2 + 0]), "r"(mc[k_i * 8 + i * 4 + j * 2 + 1])
                                 );
                     }
                 }
@@ -1069,10 +1095,10 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
 
                 mc_h2[i * 4 + j] = __hmul2(mc_h2[i * 4 + j], scale_softmax_re);
                 mc_h2[i * 4 + j + 2] = __hmul2(mc_h2[i * 4 + j + 2], scale_softmax_re);
-                softmax_ma[i*8+j*2+0] = T2int8(__low2half(mc_h2[i * 4 + j]));
-                softmax_ma[i*8+j*2+1] = T2int8(__high2half(mc_h2[i * 4 + j]));
-                softmax_ma[i*8+j*2+4] = T2int8(__low2half(mc_h2[i * 4 + j + 2]));
-                softmax_ma[i*8+j*2+5] = T2int8(__high2half(mc_h2[i * 4 + j + 2]));
+                softmax_ma[i*8+j*2+0] = T2uint8(__low2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+1] = T2uint8(__high2half(mc_h2[i * 4 + j]));
+                softmax_ma[i*8+j*2+4] = T2uint8(__low2half(mc_h2[i * 4 + j + 2]));
+                softmax_ma[i*8+j*2+5] = T2uint8(__high2half(mc_h2[i * 4 + j + 2]));
             }
         }
 
@@ -1100,7 +1126,7 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
                 val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2);
                 val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM);
 
-                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.u8.s8.s32 "
                     " { %0, %1 }, "
                     " { %2 }, "
                     " { %3 }, "
@@ -1108,7 +1134,7 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
                     : "=r"(mc[head_id * 8 + 0]), "=r"(mc[head_id * 8 + 1])
                     : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 0]), "r"(mc[head_id * 8 + 1])
                     );
-                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.u8.s8.s32 "
                     " { %0, %1 }, "
                     " { %2 }, "
                     " { %3 }, "
@@ -1122,7 +1148,7 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
                 val.z = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + TC_SIZE / 2);
                 val.w = *(value_ptr + v_i * TC_SIZE * HEAD_DIM + TC_SIZE * HEAD_DIM / 2 + HEAD_DIM + TC_SIZE / 2);
 
-                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.u8.s8.s32 "
                     " { %0, %1 }, "
                     " { %2 }, "
                     " { %3 }, "
@@ -1130,7 +1156,7 @@ __global__ void FMHAInferInt8Kernel(const int8_4 * __restrict__ query, const flo
                     : "=r"(mc[head_id * 8 + 2]), "=r"(mc[head_id * 8 + 3])
                     : "r"(*reinterpret_cast<uint32_t*>(&softmax_ma[v_i*8+0])), "r"(*reinterpret_cast<uint32_t*>(&val)), "r"(mc[head_id * 8 + 2]), "r"(mc[head_id * 8 + 3])
                     );
-                asm("mma.sync.aligned.m8n8k16.row.col.s32.s8.s8.s32 "
+                asm("mma.sync.aligned.m8n8k16.row.col.s32.u8.s8.s32 "
                     " { %0, %1 }, "
                     " { %2 }, "
                     " { %3 }, "
