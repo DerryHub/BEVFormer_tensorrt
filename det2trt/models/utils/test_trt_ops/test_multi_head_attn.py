@@ -9,10 +9,7 @@ key_shape = [960, 8, 256]
 value_shape = [960, 8, 256]
 output_shape = [960, 8, 256]
 
-transformer_kwargs = {
-    'embed_dim': 256,
-    'num_heads': 8
-}
+transformer_kwargs = {"embed_dim": 256, "num_heads": 8}
 
 
 class Transformer(torch.nn.Module):
@@ -22,7 +19,7 @@ class Transformer(torch.nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
 
-        self.qkv = TRT_FUNCTIONS.get('qkv')
+        self.qkv = TRT_FUNCTIONS.get("qkv")
 
         self.q_proj = torch.nn.Linear(self.embed_dim, self.embed_dim, bias=True)
         self.k_proj = torch.nn.Linear(self.embed_dim, self.embed_dim, bias=True)
@@ -36,9 +33,15 @@ class Transformer(torch.nn.Module):
         key = self.k_proj(key)
         value = self.v_proj(value)
 
-        query = query.view(-1, batch_size * self.num_heads, self.embed_dim // self.num_heads).permute(1, 0, 2)
-        key = key.view(-1, batch_size * self.num_heads, self.embed_dim // self.num_heads).permute(1, 0, 2)
-        value = value.view(-1, batch_size * self.num_heads, self.embed_dim // self.num_heads).permute(1, 0, 2)
+        query = query.view(
+            -1, batch_size * self.num_heads, self.embed_dim // self.num_heads
+        ).permute(1, 0, 2)
+        key = key.view(
+            -1, batch_size * self.num_heads, self.embed_dim // self.num_heads
+        ).permute(1, 0, 2)
+        value = value.view(
+            -1, batch_size * self.num_heads, self.embed_dim // self.num_heads
+        ).permute(1, 0, 2)
 
         qkv = self.qkv(query, key, value)
 
@@ -51,7 +54,7 @@ class Transformer(torch.nn.Module):
 class Transformer2(Transformer):
     def __init__(self, embed_dim, num_heads):
         super(Transformer2, self).__init__(embed_dim, num_heads)
-        self.qkv = TRT_FUNCTIONS.get('qkv2')
+        self.qkv = TRT_FUNCTIONS.get("qkv2")
 
 
 class TransformerTestCase(BaseTestCase, unittest.TestCase):
@@ -66,7 +69,7 @@ class TransformerTestCase(BaseTestCase, unittest.TestCase):
         cls.input_data = dict(
             query=torch.randn(query_shape, device="cuda"),
             key=torch.randn(key_shape, device="cuda"),
-            value=torch.randn(value_shape, device="cuda")
+            value=torch.randn(value_shape, device="cuda"),
         )
 
     @classmethod
@@ -79,13 +82,13 @@ class TransformerTestCase(BaseTestCase, unittest.TestCase):
         BaseTestCase.__init__(
             self,
             "",
-            input_shapes={"query": query_shape, 'key': key_shape, 'value': value_shape},
+            input_shapes={"query": query_shape, "key": key_shape, "value": value_shape},
             output_shapes={"output": output_shape},
             params=params,
             device="cuda",
             func_name=self.func_name,
             model_class=Transformer,
-            model_kwargs=transformer_kwargs
+            model_kwargs=transformer_kwargs,
         )
         self.buildEngine(opset_version=13)
 
@@ -144,7 +147,7 @@ class TransformerTestCase2(BaseTestCase, unittest.TestCase):
         cls.input_data = dict(
             query=torch.randn(query_shape, device="cuda"),
             key=torch.randn(key_shape, device="cuda"),
-            value=torch.randn(value_shape, device="cuda")
+            value=torch.randn(value_shape, device="cuda"),
         )
 
     @classmethod
@@ -157,13 +160,13 @@ class TransformerTestCase2(BaseTestCase, unittest.TestCase):
         BaseTestCase.__init__(
             self,
             "",
-            input_shapes={"query": query_shape, 'key': key_shape, 'value': value_shape},
+            input_shapes={"query": query_shape, "key": key_shape, "value": value_shape},
             output_shapes={"output": output_shape},
             params=params,
             device="cuda",
             func_name=self.func_name,
             model_class=Transformer2,
-            model_kwargs=transformer_kwargs
+            model_kwargs=transformer_kwargs,
         )
         self.buildEngine(opset_version=13)
 

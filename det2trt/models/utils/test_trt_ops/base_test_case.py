@@ -16,7 +16,7 @@ class BaseTestCase:
         device="cuda",
         delta=1e-5,
         model_class=None,
-        model_kwargs=None
+        model_kwargs=None,
     ):
         assert "fp16" in func_name or "fp32" in func_name or "int8" in func_name
         self.int8_fp16 = False
@@ -41,9 +41,13 @@ class BaseTestCase:
         assert isinstance(params, list)
         module = TRT_FUNCTIONS.get(model_name)
         self.createInputs()
-        self.models = self.createModels(params, module, input_shapes, output_shapes, model_class, model_kwargs)
+        self.models = self.createModels(
+            params, module, input_shapes, output_shapes, model_class, model_kwargs
+        )
 
-    def createModels(self, params, module, input_shapes, output_shapes, model_class, model_kwargs):
+    def createModels(
+        self, params, module, input_shapes, output_shapes, model_class, model_kwargs
+    ):
         models = []
         for param in params:
             dic = {"param": param}
@@ -112,7 +116,9 @@ class BaseTestCase:
         for dic in self.models:
             if self.int8:
                 calibrator = Calibrator(self.input_shapes)
-                calibrator.set_inputs(self.inputs_np_fp16 if self.int8_fp16 else self.inputs_np_int8,)
+                calibrator.set_inputs(
+                    self.inputs_np_fp16 if self.int8_fp16 else self.inputs_np_int8,
+                )
 
                 engine = pth2trt(
                     dic["model_pth_int8"],

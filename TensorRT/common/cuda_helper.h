@@ -55,48 +55,48 @@ void memcpyPermute(scalar_t *dst, const scalar_t *src, int *src_size,
                    int *permute, int src_dim, cudaStream_t stream = 0);
 
 template <typename scalar_t>
-cublasStatus_t cublasGemmWrap(cublasHandle_t handle, cublasOperation_t transa,
-                              cublasOperation_t transb, int m, int n, int k,
-                              const scalar_t *alpha, const scalar_t *A, int lda,
-                              const scalar_t *B, int ldb, const scalar_t *beta,
-                              scalar_t *C, int ldc, cublasGemmAlgo_t algo=CUBLAS_GEMM_DFALT_TENSOR_OP);
+cublasStatus_t
+cublasGemmWrap(cublasHandle_t handle, cublasOperation_t transa,
+               cublasOperation_t transb, int m, int n, int k,
+               const scalar_t *alpha, const scalar_t *A, int lda,
+               const scalar_t *B, int ldb, const scalar_t *beta, scalar_t *C,
+               int ldc, cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP);
 
-cublasStatus_t cublasGemmWrap_int8(cublasHandle_t handle,
-                                   cublasOperation_t transa,
-                                   cublasOperation_t transb, int m, int n,
-                                   int k, const int32_t *alpha, const int8_t *A,
-                                   int lda, const int8_t *B, int ldb,
-                                   const int32_t *beta, int32_t *C, int ldc, cublasGemmAlgo_t algo=CUBLAS_GEMM_DFALT_TENSOR_OP);
-
-template <typename scalar_t>
-cublasStatus_t cublasGemmBatchedWrap(cublasHandle_t handle, cublasOperation_t transa,
-                              cublasOperation_t transb, int m, int n, int k,
-                              const scalar_t *alpha, const scalar_t* const Aarray[], int lda,
-                              const scalar_t* const Barray[], int ldb, const scalar_t *beta,
-                              scalar_t* const Carray[], int ldc, int batchCount, cublasGemmAlgo_t algo=CUBLAS_GEMM_DFALT_TENSOR_OP);
-
-cublasStatus_t cublasGemmBatchedWrap_int8(cublasHandle_t handle,
-                                   cublasOperation_t transa,
-                                   cublasOperation_t transb, int m, int n,
-                                   int k, const int32_t *alpha, const int8_t* const Aarray[],
-                                   int lda, const int8_t* const Barray[], int ldb,
-                                   const int32_t *beta, const int32_t* const Carray[], int ldc, int batchCount, cublasGemmAlgo_t algo=CUBLAS_GEMM_DFALT_TENSOR_OP);
-
+cublasStatus_t cublasGemmWrap_int8(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const int32_t *alpha, const int8_t *A, int lda,
+    const int8_t *B, int ldb, const int32_t *beta, int32_t *C, int ldc,
+    cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP);
 
 template <typename scalar_t>
-cublasStatus_t cublasGemmStridedBatchedWrap(cublasHandle_t handle, cublasOperation_t transa,
-                                     cublasOperation_t transb, int m, int n, int k,
-                                     const scalar_t *alpha, const scalar_t* A, int lda, long long int strideA,
-                                     const scalar_t* B, int ldb, long long int strideB, const scalar_t *beta,
-                                     scalar_t* C, int ldc, long long int strideC, int batchCount, cublasGemmAlgo_t algo=CUBLAS_GEMM_DFALT_TENSOR_OP);
+cublasStatus_t cublasGemmBatchedWrap(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const scalar_t *alpha, const scalar_t *const Aarray[],
+    int lda, const scalar_t *const Barray[], int ldb, const scalar_t *beta,
+    scalar_t *const Carray[], int ldc, int batchCount,
+    cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP);
 
-cublasStatus_t cublasGemmStridedBatchedWrap_int8(cublasHandle_t handle,
-                                          cublasOperation_t transa,
-                                          cublasOperation_t transb, int m, int n,
-                                          int k, const int32_t *alpha, const int8_t* A,
-                                          int lda, long long int strideA, const int8_t* B, int ldb, long long int strideB,
-                                          const int32_t *beta, const int32_t* C, int ldc, long long int strideC, int batchCount, cublasGemmAlgo_t algo=CUBLAS_GEMM_DFALT_TENSOR_OP);
+cublasStatus_t cublasGemmBatchedWrap_int8(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const int32_t *alpha, const int8_t *const Aarray[],
+    int lda, const int8_t *const Barray[], int ldb, const int32_t *beta,
+    const int32_t *const Carray[], int ldc, int batchCount,
+    cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP);
 
+template <typename scalar_t>
+cublasStatus_t cublasGemmStridedBatchedWrap(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const scalar_t *alpha, const scalar_t *A, int lda,
+    long long int strideA, const scalar_t *B, int ldb, long long int strideB,
+    const scalar_t *beta, scalar_t *C, int ldc, long long int strideC,
+    int batchCount, cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP);
+
+cublasStatus_t cublasGemmStridedBatchedWrap_int8(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const int32_t *alpha, const int8_t *A, int lda,
+    long long int strideA, const int8_t *B, int ldb, long long int strideB,
+    const int32_t *beta, const int32_t *C, int ldc, long long int strideC,
+    int batchCount, cublasGemmAlgo_t algo = CUBLAS_GEMM_DFALT_TENSOR_OP);
 
 template <typename scalar_t>
 __device__ __forceinline__ scalar_t

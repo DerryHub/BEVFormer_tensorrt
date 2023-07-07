@@ -52,12 +52,21 @@ class Calibrator(trt.IInt8MinMaxCalibrator):
 
 
 def createModel(
-    module, input_shapes, output_shapes, device="cuda", fp16=False, int8=False, model_class=None, model_kwargs=None, **kwargs
+    module,
+    input_shapes,
+    output_shapes,
+    device="cuda",
+    fp16=False,
+    int8=False,
+    model_class=None,
+    model_kwargs=None,
+    **kwargs
 ):
     assert device in ["cuda", "cpu"]
     assert isinstance(input_shapes, dict) and isinstance(output_shapes, dict)
 
     if model_class is None:
+
         class Model(nn.Module):
             def __init__(self):
                 super(Model, self).__init__()
@@ -71,7 +80,9 @@ def createModel(
                         self.expand = True
                     else:
                         channel = output_shapes["output"][1]
-                    self.conv = nn.Conv2d(channel, channel, 1, groups=channel, bias=False)
+                    self.conv = nn.Conv2d(
+                        channel, channel, 1, groups=channel, bias=False
+                    )
                     self.conv.weight = nn.Parameter(torch.ones_like(self.conv.weight))
 
             def forward(self, *inputs):
@@ -85,7 +96,9 @@ def createModel(
         model = Model().half() if fp16 else Model()
     else:
         model_kwargs = {} if model_kwargs is None else model_kwargs
-        model = model_class(**model_kwargs).half() if fp16 else model_class(**model_kwargs)
+        model = (
+            model_class(**model_kwargs).half() if fp16 else model_class(**model_kwargs)
+        )
     model.eval()
     model.input_shapes = input_shapes
     model.output_shapes = output_shapes
