@@ -252,6 +252,8 @@ pip install -v -e .
 
 ##### Build and Install Custom TensorRT Plugins
 
+**NOTE: CUDA>=11.4, SM version>=7.5**
+
 ```shell
 cd ${PROJECT_DIR}/TensorRT/build
 cmake .. -DCMAKE_TENSORRT_PATH=/path/to/TensorRT
