@@ -87,15 +87,15 @@ cudnnStatus_t convert_trt2cudnn_dtype(nvinfer1::DataType trt_dtype,
 }
 
 template <>
-cublasStatus_t cublasGemmWrap<float>(cublasHandle_t handle,
-                                     cublasOperation_t transa,
-                                     cublasOperation_t transb, int m, int n,
-                                     int k, const float *alpha, const float *A,
-                                     int lda, const float *B, int ldb,
-                                     const float *beta, float *C, int ldc) {
+cublasStatus_t
+cublasGemmWrap<float>(cublasHandle_t handle, cublasOperation_t transa,
+                      cublasOperation_t transb, int m, int n, int k,
+                      const float *alpha, const float *A, int lda,
+                      const float *B, int ldb, const float *beta, float *C,
+                      int ldc, cublasGemmAlgo_t algo) {
   return cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, CUDA_R_32F,
                       lda, B, CUDA_R_32F, ldb, beta, C, CUDA_R_32F, ldc,
-                      CUDA_R_32F, CUBLAS_GEMM_DFALT_TENSOR_OP);
+                      CUDA_R_32F, algo);
 }
 
 template <>
@@ -103,10 +103,11 @@ cublasStatus_t
 cublasGemmWrap<half>(cublasHandle_t handle, cublasOperation_t transa,
                      cublasOperation_t transb, int m, int n, int k,
                      const half *alpha, const half *A, int lda, const half *B,
-                     int ldb, const half *beta, half *C, int ldc) {
+                     int ldb, const half *beta, half *C, int ldc,
+                     cublasGemmAlgo_t algo) {
   return cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, CUDA_R_16F,
                       lda, B, CUDA_R_16F, ldb, beta, C, CUDA_R_16F, ldc,
-                      CUDA_R_16F, CUBLAS_GEMM_DFALT_TENSOR_OP);
+                      CUDA_R_16F, algo);
 }
 
 cublasStatus_t cublasGemmWrap_int8(cublasHandle_t handle,
@@ -114,8 +115,82 @@ cublasStatus_t cublasGemmWrap_int8(cublasHandle_t handle,
                                    cublasOperation_t transb, int m, int n,
                                    int k, const int32_t *alpha, const int8_t *A,
                                    int lda, const int8_t *B, int ldb,
-                                   const int32_t *beta, int32_t *C, int ldc) {
+                                   const int32_t *beta, int32_t *C, int ldc,
+                                   cublasGemmAlgo_t algo) {
   return cublasGemmEx(handle, transa, transb, m, n, k, alpha, A, CUDA_R_8I, lda,
                       B, CUDA_R_8I, ldb, beta, C, CUDA_R_32I, ldc, CUDA_R_32I,
-                      CUBLAS_GEMM_DFALT_TENSOR_OP);
+                      algo);
+}
+
+template <>
+cublasStatus_t cublasGemmBatchedWrap<float>(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const float *alpha, const float *const Aarray[],
+    int lda, const float *const Barray[], int ldb, const float *beta,
+    float *const Carray[], int ldc, int batchCount, cublasGemmAlgo_t algo) {
+  return cublasGemmBatchedEx(
+      handle, transa, transb, m, n, k, alpha, (const void *const *)Aarray,
+      CUDA_R_32F, lda, (const void *const *)Barray, CUDA_R_32F, ldb, beta,
+      (void *const *)Carray, CUDA_R_32F, ldc, batchCount, CUDA_R_32F, algo);
+}
+
+template <>
+cublasStatus_t cublasGemmBatchedWrap<half>(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const half *alpha, const half *const Aarray[], int lda,
+    const half *const Barray[], int ldb, const half *beta, half *const Carray[],
+    int ldc, int batchCount, cublasGemmAlgo_t algo) {
+  return cublasGemmBatchedEx(
+      handle, transa, transb, m, n, k, alpha, (const void *const *)Aarray,
+      CUDA_R_16F, lda, (const void *const *)Barray, CUDA_R_16F, ldb, beta,
+      (void *const *)Carray, CUDA_R_16F, ldc, batchCount, CUDA_R_16F, algo);
+}
+
+cublasStatus_t cublasGemmBatchedWrap_int8(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const int32_t *alpha, const int8_t *const Aarray[],
+    int lda, const int8_t *const Barray[], int ldb, const int32_t *beta,
+    int32_t *const Carray[], int ldc, int batchCount, cublasGemmAlgo_t algo) {
+  return cublasGemmBatchedEx(
+      handle, transa, transb, m, n, k, alpha, (const void *const *)Aarray,
+      CUDA_R_8I, lda, (const void *const *)Barray, CUDA_R_8I, ldb, beta,
+      (void *const *)Carray, CUDA_R_32I, ldc, batchCount, CUDA_R_32I, algo);
+}
+
+template <>
+cublasStatus_t cublasGemmStridedBatchedWrap<float>(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const float *alpha, const float *A, int lda,
+    long long int strideA, const float *B, int ldb, long long int strideB,
+    const float *beta, float *C, int ldc, long long int strideC, int batchCount,
+    cublasGemmAlgo_t algo) {
+  return cublasGemmStridedBatchedEx(handle, transa, transb, m, n, k, alpha, A,
+                                    CUDA_R_32F, lda, strideA, B, CUDA_R_32F,
+                                    ldb, strideB, beta, C, CUDA_R_32F, ldc,
+                                    strideC, batchCount, CUDA_R_32F, algo);
+}
+
+template <>
+cublasStatus_t cublasGemmStridedBatchedWrap<half>(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const half *alpha, const half *A, int lda,
+    long long int strideA, const half *B, int ldb, long long int strideB,
+    const half *beta, half *C, int ldc, long long int strideC, int batchCount,
+    cublasGemmAlgo_t algo) {
+  return cublasGemmStridedBatchedEx(handle, transa, transb, m, n, k, alpha, A,
+                                    CUDA_R_16F, lda, strideA, B, CUDA_R_16F,
+                                    ldb, strideB, beta, C, CUDA_R_16F, ldc,
+                                    strideC, batchCount, CUDA_R_16F, algo);
+}
+
+cublasStatus_t cublasGemmStridedBatchedWrap_int8(
+    cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
+    int m, int n, int k, const int32_t *alpha, const int8_t *A, int lda,
+    long long int strideA, const int8_t *B, int ldb, long long int strideB,
+    const int32_t *beta, const int32_t *C, int ldc, long long int strideC,
+    int batchCount, cublasGemmAlgo_t algo) {
+  return cublasGemmStridedBatchedEx(handle, transa, transb, m, n, k, alpha, A,
+                                    CUDA_R_8I, lda, strideA, B, CUDA_R_8I, ldb,
+                                    strideB, beta, (void *)C, CUDA_R_32I, ldc,
+                                    strideC, batchCount, CUDA_R_32I, algo);
 }

@@ -16,9 +16,9 @@ using namespace nvinfer1;
 using namespace nvinfer1::plugin;
 
 namespace {
-constexpr char const *I_PLUGIN_VERSION{"1"};
-constexpr char const *I_PLUGIN_NAME{"BEVPoolV2TRT"};
-constexpr char const *I_PLUGIN_NAME2{"BEVPoolV2TRT2"};
+constexpr char const *BP_PLUGIN_VERSION{"1"};
+constexpr char const *BP_PLUGIN_NAME{"BEVPoolV2TRT"};
+constexpr char const *BP_PLUGIN_NAME2{"BEVPoolV2TRT2"};
 } // namespace
 
 PluginFieldCollection BEVPoolPluginCreator::mFC{};
@@ -75,11 +75,6 @@ int32_t BEVPoolPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
   auto data_type = inputDesc[0].type;
   int num_points =
       out_dims.d[0] * out_dims.d[1] * out_dims.d[2] * out_dims.d[3];
-  //    float time = 0;
-  //    cudaEvent_t start, end;
-  //    cudaEventCreate(&start);
-  //    cudaEventCreate(&end);
-  //    cudaEventRecord(start, stream);
   switch (data_type) {
   case nvinfer1::DataType::kFLOAT:
     bev_pool_v2(feat_dims.d[3], interval_dims.d[0], num_points,
@@ -111,13 +106,6 @@ int32_t BEVPoolPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
   default:
     return 1;
   }
-  //    cudaEventRecord(end, stream);
-  //    cudaEventSynchronize(start);
-  //    cudaEventSynchronize(end);
-  //    cudaEventElapsedTime(&time, start, end);
-  //    cudaEventDestroy(start);
-  //    cudaEventDestroy(end);
-  //    printf("\nCPP TIME: %f ms\n", time);
   return 0;
 }
 
@@ -148,11 +136,11 @@ bool BEVPoolPlugin::supportsFormatCombination(
 }
 
 char const *BEVPoolPlugin::getPluginType() const noexcept {
-  return use_h2 ? I_PLUGIN_NAME2 : I_PLUGIN_NAME;
+  return use_h2 ? BP_PLUGIN_NAME2 : BP_PLUGIN_NAME;
 }
 
 char const *BEVPoolPlugin::getPluginVersion() const noexcept {
-  return I_PLUGIN_VERSION;
+  return BP_PLUGIN_VERSION;
 }
 
 void BEVPoolPlugin::destroy() noexcept { delete this; }
@@ -215,11 +203,11 @@ BEVPoolPluginCreator::BEVPoolPluginCreator() {
 }
 
 char const *BEVPoolPluginCreator::getPluginName() const noexcept {
-  return I_PLUGIN_NAME;
+  return BP_PLUGIN_NAME;
 }
 
 char const *BEVPoolPluginCreator::getPluginVersion() const noexcept {
-  return I_PLUGIN_VERSION;
+  return BP_PLUGIN_VERSION;
 }
 
 PluginFieldCollection const *BEVPoolPluginCreator::getFieldNames() noexcept {
@@ -276,11 +264,11 @@ BEVPoolPluginCreator2::BEVPoolPluginCreator2() {
 }
 
 char const *BEVPoolPluginCreator2::getPluginName() const noexcept {
-  return I_PLUGIN_NAME2;
+  return BP_PLUGIN_NAME2;
 }
 
 char const *BEVPoolPluginCreator2::getPluginVersion() const noexcept {
-  return I_PLUGIN_VERSION;
+  return BP_PLUGIN_VERSION;
 }
 
 PluginFieldCollection const *BEVPoolPluginCreator2::getFieldNames() noexcept {

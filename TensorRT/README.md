@@ -242,3 +242,36 @@
 * output: T[float/half/half2/int8]
 
   Tensor shape: `[1, out_height, out_width, C]`
+
+### Multi-Head Attention
+
+| OP Name |               Inputs               |  Outputs  | FP32 Speed NHMA | FP16 Speed NHMA | FP32 Speed FHMA | FP16 Speed FHMA | INT8 Speed FHMA | Half Type | Test Device |
+| :-----: | :--------------------------------: | :-------: | :-------------: | :-------------: | :-------------: | :-------------: | :-------------: | :-------: | :---------: |
+| QKVTRT  | query: T<br />key: T<br />value: T | output: T |       x1        |      X1.9       |      x4.4       |      x5.7       |      x6.9       |  nv_half  | RTX 2080Ti  |
+| QKVTRT2 | query: T<br />key: T<br />value: T | output: T |       x1        |      X2.2       |      x4.4       |      x6.0       |      x6.9       | nv_half2  | RTX 2080Ti  |
+
+#### Inputs
+
+* query: T[float/half/half2/int8]
+
+  Tensor shape: `[batch, q_len, channel]` 
+
+* key: T[float/half/half2/int8]
+
+  Tensor shape: `[batch, kv_len, channel]`
+
+* value: T[float/half/half2/int8]
+
+  Tensor shape: `[batch, kv_len, channel]`
+
+#### Attributes
+
+​	-
+
+#### Outputs
+
+* output: T[float/half/half2/int8]
+
+  Tensor shape: `[batch, q_len, channel]` 
+
+**NOTE: If `q_len` and `kv_len` are both multiples of 64, the plugin will run with Flash Multi-Head Attention (FMHA), else Naive Multi-Head Attention (NMHA).**
