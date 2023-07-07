@@ -5,8 +5,8 @@ from .base_test_case import BaseTestCase
 
 # q_len, batch_size, embed_dim
 query_shape = [960, 8, 256]
-query_pos_shape = [960, 8, 256]
-key_pos_shape = [960, 8, 256]
+key_shape = [960, 8, 256]
+value_shape = [960, 8, 256]
 output_shape = [960, 8, 256]
 
 transformer_kwargs = {
@@ -29,11 +29,8 @@ class Transformer(torch.nn.Module):
         self.v_proj = torch.nn.Linear(self.embed_dim, self.embed_dim, bias=True)
         self.out_proj = torch.nn.Linear(self.embed_dim, self.embed_dim, bias=True)
 
-    def forward(self, query, query_pos, key_pos):
+    def forward(self, query, key, value):
         batch_size = query.shape[1]
-        value = query
-        key = query + key_pos
-        query = query + query_pos
 
         query = self.q_proj(query)
         key = self.k_proj(key)
@@ -68,8 +65,8 @@ class TransformerTestCase(BaseTestCase, unittest.TestCase):
         print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
         cls.input_data = dict(
             query=torch.randn(query_shape, device="cuda"),
-            query_pos=torch.randn(query_pos_shape, device="cuda"),
-            key_pos=torch.randn(key_pos_shape, device="cuda")
+            key=torch.randn(key_shape, device="cuda"),
+            value=torch.randn(value_shape, device="cuda")
         )
 
     @classmethod
@@ -82,7 +79,7 @@ class TransformerTestCase(BaseTestCase, unittest.TestCase):
         BaseTestCase.__init__(
             self,
             "",
-            input_shapes={"query": query_shape, 'query_pos': query_pos_shape, 'key_pos': key_pos_shape},
+            input_shapes={"query": query_shape, 'key': key_shape, 'value': value_shape},
             output_shapes={"output": output_shape},
             params=params,
             device="cuda",
@@ -146,8 +143,8 @@ class TransformerTestCase2(BaseTestCase, unittest.TestCase):
         print("\n" + "#" * 20 + f" Running {cls.__name__} " + "#" * 20)
         cls.input_data = dict(
             query=torch.randn(query_shape, device="cuda"),
-            query_pos=torch.randn(query_pos_shape, device="cuda"),
-            key_pos=torch.randn(key_pos_shape, device="cuda")
+            key=torch.randn(key_shape, device="cuda"),
+            value=torch.randn(value_shape, device="cuda")
         )
 
     @classmethod
@@ -160,7 +157,7 @@ class TransformerTestCase2(BaseTestCase, unittest.TestCase):
         BaseTestCase.__init__(
             self,
             "",
-            input_shapes={"query": query_shape, 'query_pos': query_pos_shape, 'key_pos': key_pos_shape},
+            input_shapes={"query": query_shape, 'key': key_shape, 'value': value_shape},
             output_shapes={"output": output_shape},
             params=params,
             device="cuda",

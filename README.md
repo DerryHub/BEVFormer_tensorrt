@@ -279,7 +279,15 @@ Download above PyTorch checkpoints to `${PROJECT_DIR}/checkpoints/pytorch/`. The
 
 ## Custom TensorRT Plugins
 
-Support Common TensorRT Ops in BEVFormer: `Grid Sampler`, `Multi-scale Deformable Attention`, `Modulated Deformable Conv2d` and `Rotate`.
+Support Common TensorRT Ops in BEVFormer:
+
+* Grid Sampler
+* Multi-scale Deformable Attention
+* Modulated Deformable Conv2d
+* Rotate
+* Inverse
+* BEV Pool V2
+* Flash Multi-Head Attention
 
 Each operation is implemented as 2 versions: **FP32/FP16 (nv_half)/INT8** and **FP32/FP16 (nv_half2)/INT8**.
 
