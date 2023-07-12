@@ -107,9 +107,7 @@ This project also supports common 2D object detection models in MMDetection with
 |                          CenterNet                           | COCO | TensorRT  |     32     | FP32/INT8 | PTQ entropy<br />per-tensor | mAP: 0.27  | 1534.0 (x3.22) | 20 (x0.34) | 6549 (x0.79) | RTX 3090 |
 |                          CenterNet                           | COCO | TensorRT  |     32     | FP16/INT8 | PTQ entropy<br />per-tensor | mAP: 0.285 | 1889.0 (x3.97) | 17 (x0.29) | 6453 (x0.78) | RTX 3090 |
 
-## Install
-
-### Clone
+## Clone
 
 ```shell
 git clone git@github.com:DerryHub/BEVFormer_tensorrt.git
@@ -117,9 +115,9 @@ cd BEVFormer_tensorrt
 PROJECT_DIR=$(pwd)
 ```
 
-### Data Preparation
+## Data Preparation
 
-#### MS COCO (For 2D Detection)
+### MS COCO (For 2D Detection)
 
 Download the [COCO 2017](https://cocodataset.org/#download) datasets to `/path/to/coco` and unzip them.
 
@@ -128,7 +126,7 @@ cd ${PROJECT_DIR}/data
 ln -s /path/to/coco coco
 ```
 
-#### NuScenes and CAN bus (For BEVFormer)
+### NuScenes and CAN bus (For BEVFormer)
 
 Download nuScenes V1.0 full dataset data and CAN bus expansion data [HERE](https://www.nuscenes.org/download) as `/path/to/nuscenes` and `/path/to/can_bus`.
 
@@ -143,7 +141,7 @@ cd ${PROJECT_DIR}
 sh samples/bevformer/create_data.sh
 ```
 
-#### Tree
+### Tree
 
 ```shell
 ${PROJECT_DIR}/data/.
@@ -164,7 +162,29 @@ ${PROJECT_DIR}/data/.
     └── v1.0-trainval
 ```
 
-### Install Packages
+## Install
+
+### With Docker
+
+```shell
+cd ${PROJECT_DIR}
+docker build -t trt85 -f docker/Dockerfile .
+docker run -it --gpus all -v ${PROJECT_DIR}:/workspace/BEVFormer_tensorrt/ \
+-v /path/to/can_bus:/workspace/BEVFormer_tensorrt/data/can_bus \
+-v /path/to/coco:/workspace/BEVFormer_tensorrt/data/coco \
+-v /path/to/nuscenes:/workspace/BEVFormer_tensorrt/data/nuscenes \
+--shm-size 8G trt85 /bin/bash
+
+# in container
+cd /workspace/BEVFormer_tensorrt/TensorRT/build
+cmake .. -DCMAKE_TENSORRT_PATH=/usr
+make -j$(nproc)
+make install
+cd /workspace/BEVFormer_tensorrt/third_party/bev_mmdet3d
+python setup.py build develop
+```
+
+### From Source
 
 #### CUDA/cuDNN/TensorRT
 
@@ -249,6 +269,11 @@ pip install -v -e .
 ```
 
 #### Install this Project
+
+```shell
+cd ${PROJECT_DIR}
+pip install -r requirements.txt
+```
 
 ##### Build and Install Custom TensorRT Plugins
 
