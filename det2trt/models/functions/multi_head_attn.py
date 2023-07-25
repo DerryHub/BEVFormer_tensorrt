@@ -31,7 +31,7 @@ def qkv(query, key, value):
 
     Args:
         query: [batch_size, q_len, embed_dim]
-        key: [batch_size, embed_dim, kv_len]
+        key: [batch_size, kv_len, embed_dim]
         value: [batch_size, kv_len, embed_dim]
 
     Returns: [batch_size, q_len, embed_dim]
@@ -45,7 +45,7 @@ def qkv2(query, key, value):
 
     Args:
         query: [batch_size, q_len, embed_dim]
-        key: [batch_size, embed_dim, kv_len]
+        key: [batch_size, kv_len, embed_dim]
         value: [batch_size, kv_len, embed_dim]
 
     Returns: [batch_size, q_len, embed_dim]
