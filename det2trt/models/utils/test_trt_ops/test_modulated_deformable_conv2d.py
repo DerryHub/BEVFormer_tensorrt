@@ -87,6 +87,14 @@ class ModulatedDeformableConv2dTestCase(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True, fp16=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True, fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32(self):
         self.fp32_case()
 
@@ -97,7 +105,7 @@ class ModulatedDeformableConv2dTestCase(BaseTestCase, unittest.TestCase):
         self.int8_case(1.5)
 
     def test_int8_fp16(self):
-        self.int8_case(1.5)
+        self.int8_fp16_case(1.5)
 
 
 class ModulatedDeformableConv2dTestCase2(BaseTestCase, unittest.TestCase):
@@ -175,6 +183,14 @@ class ModulatedDeformableConv2dTestCase2(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True, fp16=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True, fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32(self):
         self.fp32_case()
 
@@ -185,4 +201,4 @@ class ModulatedDeformableConv2dTestCase2(BaseTestCase, unittest.TestCase):
         self.int8_case(1.5)
 
     def test_int8_fp16(self):
-        self.int8_case(1.5)
+        self.int8_fp16_case(1.5)

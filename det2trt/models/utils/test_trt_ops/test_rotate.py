@@ -89,6 +89,14 @@ class RotateTestCase(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True, fp16=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True, fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32_bilinear(self):
         self.fp32_case(1e-4)
 
@@ -108,10 +116,10 @@ class RotateTestCase(BaseTestCase, unittest.TestCase):
         self.int8_case(0.5)
 
     def test_int8_fp16_bilinear(self):
-        self.int8_case(0.3)
+        self.int8_fp16_case(0.3)
 
     def test_int8_fp16_nearest(self):
-        self.int8_case(0.5)
+        self.int8_fp16_case(0.5)
 
 
 class RotateTestCase2(BaseTestCase, unittest.TestCase):
@@ -194,6 +202,14 @@ class RotateTestCase2(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True, fp16=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True, fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32_bilinear(self):
         self.fp32_case(1e-4)
 
@@ -213,7 +229,7 @@ class RotateTestCase2(BaseTestCase, unittest.TestCase):
         self.int8_case(0.5)
 
     def test_int8_fp16_bilinear(self):
-        self.int8_case(0.3)
+        self.int8_fp16_case(0.3)
 
     def test_int8_fp16_nearest(self):
-        self.int8_case(0.5)
+        self.int8_fp16_case(0.5)

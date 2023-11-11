@@ -38,31 +38,31 @@ This repository is a deployment project of BEV 3D Detection (including [BEVForme
 
 **FP16 Plugins with nv_half**
 
-|      Model      |   Data   | Batch Size | Float/Int |     Quantization Method     |          NDS/mAP          | FPS/Improve  |  Size (MB)  | Memory (MB)  |  Device  |
-| :-------------: | :------: | :--------: | :-------: | :-------------------------: | :-----------------------: | :----------: | :---------: | :----------: | :------: |
-| BEVFormer tiny  | NuScenes |     1      |   FP32    |              -              | NDS: 0.355<br/>mAP: 0.252 | 39.2 (x1.03) | 135 (x0.99) | 1691 (x0.78) | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      |   FP16    |              -              | NDS: 0.355<br/>mAP: 0.251 | 79.6 (x2.10) | 72 (x0.53)  | 1203 (x0.56) | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.352<br/>mAP: 0.249 | 88.3 (x2.33) | 59 (x0.43)  | 1199 (x0.56) | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.353<br/>mAP: 0.250 | 97.5 (x2.57) | 52 (x0.38)  | 1055 (x0.49) | RTX 3090 |
-| BEVFormer small | NuScenes |     1      |   FP32    |              -              | NDS: 0.478<br/>mAP: 0.370 | 7.1 (x1.08)  | 250 (x1.02) | 2625 (x0.56) | RTX 3090 |
-| BEVFormer small | NuScenes |     1      |   FP16    |              -              | NDS: 0.479<br/>mAP: 0.371 | 15.4 (x2.33) | 124 (x0.51) | 1723 (x0.37) | RTX 3090 |
-| BEVFormer small | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.477<br/>mAP: 0.368 | 16.7 (x2.53) | 165 (x0.67) | 1639 (x0.35) | RTX 3090 |
-| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.477<br/>mAP: 0.367 | 18.7 (x2.83) | 109 (x0.44) | 1471 (x0.32) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP32    |              -              | NDS: 0.517<br/>mAP: 0.416 | 2.9 (x1.93)  | 292 (x0.17) | 5343 (x0.38) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP16    |              -              | NDS: 0.518<br/>mAP: 0.416 | 5.1 (x3.40)  | 148 (x0.09) | 3317 (x0.24) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.515<br/>mAP: 0.413 | 6.3 (x4.20)  | 201 (x0.12) | 3305 (x0.24) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.509<br/>mAP: 0.408 | 7.2 (x4.80)  | 132 (x0.08) | 2457 (x0.18) | RTX 3090 |
+|      Model      |   Data   | Batch Size | Float/Int |     Quantization Method     |          NDS/mAP          |  FPS/Improve  |  Size (MB)  | Memory (MB)  |  Device  |
+| :-------------: | :------: | :--------: | :-------: | :-------------------------: | :-----------------------: | :-----------: | :---------: | :----------: | :------: |
+| BEVFormer tiny  | NuScenes |     1      |   FP32    |              -              | NDS: 0.354<br/>mAP: 0.252 | 40.0 (x1.06)  | 135 (x0.99) | 1693 (x0.78) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      |   FP16    |              -              | NDS: 0.355<br/>mAP: 0.252 | 81.2 (x2.14)  | 70 (x0.51)  | 1203 (x0.56) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.351<br/>mAP: 0.249 | 90.1 (x2.38)  | 58 (x0.43)  | 1105 (x0.51) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.351<br/>mAP: 0.249 | 107.4 (x2.83) | 52 (x0.38)  | 1095 (x0.51) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      |   FP32    |              -              | NDS: 0.478<br/>mAP: 0.37  |  7.4 (x1.12)  | 250 (x1.02) | 2585 (x0.55) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      |   FP16    |              -              | NDS: 0.479<br/>mAP: 0.37  | 15.8 (x2.40)  | 127 (x0.52) | 1729 (x0.37) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.477<br/>mAP: 0.367 | 17.9 (x2.71)  | 166 (x0.68) | 1637 (x0.35) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.476<br/>mAP: 0.366 | 20.4 (x3.10)  | 108 (x0.44) | 1467 (x0.31) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP32    |              -              | NDS: 0.517<br/>mAP: 0.416 |  3.0 (x2.00)  | 292 (x0.17) | 5715 (x0.41) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP16    |              -              | NDS: 0.517<br/>mAP: 0.416 |  4.9 (x3.27)  | 148 (x0.09) | 3417 (x0.25) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      | FP32/INT8 | PTQ entropy<br />per-tensor | NDS: 0.515<br/>mAP: 0.414 |  6.9 (x4.60)  | 202 (x0.12) | 3307 (x0.24) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.514<br/>mAP: 0.413 |  8.0 (x5.33)  | 131 (x0.08) | 2429 (x0.17) | RTX 3090 |
 
 **FP16 Plugins with nv_half2**
 
 |      Model      |   Data   | Batch Size | Float/Int |     Quantization Method     |          NDS/mAP          |      FPS      |  Size (MB)  | Memory (MB)  |  Device  |
 | :-------------: | :------: | :--------: | :-------: | :-------------------------: | :-----------------------: | :-----------: | :---------: | :----------: | :------: |
-| BEVFormer tiny  | NuScenes |     1      |   FP16    |              -              | NDS: 0.355<br/>mAP: 0.252 | 90.7 (x2.39)  | 72 (x0.53)  | 1203 (x0.56) | RTX 3090 |
-| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.354<br/>mAP: 0.250 | 101.7 (x2.68) | 54 (x0.40)  | 1091 (x0.51) | RTX 3090 |
-| BEVFormer small | NuScenes |     1      |   FP16    |              -              | NDS: 0.478<br/>mAP: 0.370 | 17.9 (x2.71)  | 152 (x0.62) | 1639 (x0.35) | RTX 3090 |
-| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.478<br/>mAP: 0.369 | 21.5 (x3.26)  | 134 (x0.55) | 1507 (x0.32) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      |   FP16    |              -              | NDS: 0.517<br/>mAP: 0.416 |  6.6 (x4.40)  | 172 (x0.10) | 3341 (x0.24) | RTX 3090 |
-| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.516<br/>mAP: 0.414 |  7.7 (x5.13)  | 133 (x0.08) | 2691 (x0.19) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      |   FP16    |              -              | NDS: 0.355<br/>mAP: 0.251 | 84.2 (x2.22)  | 72 (x0.53)  | 1205 (x0.56) | RTX 3090 |
+| BEVFormer tiny  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.354<br/>mAP: 0.250 | 108.3 (x2.86) | 52 (x0.38)  | 1093 (x0.51) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      |   FP16    |              -              | NDS: 0.479<br/>mAP: 0.371 | 18.6 (x2.82)  | 124 (x0.51) | 1725 (x0.37) | RTX 3090 |
+| BEVFormer small | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.477<br/>mAP: 0.368 | 22.9 (x3.47)  | 110 (x0.45) | 1487 (x0.32) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      |   FP16    |              -              | NDS: 0.517<br/>mAP: 0.416 |  6.6 (x4.40)  | 146 (x0.09) | 3415 (x0.25) | RTX 3090 |
+| BEVFormer base  | NuScenes |     1      | FP16/INT8 | PTQ entropy<br />per-tensor | NDS: 0.516<br/>mAP: 0.415 |  8.6 (x5.73)  | 159 (x0.09) | 2479 (x0.18) | RTX 3090 |
 
 ### BEVDet
 
@@ -181,8 +181,10 @@ cmake .. -DCMAKE_TENSORRT_PATH=/usr
 make -j$(nproc)
 make install
 cd /workspace/BEVFormer_tensorrt/third_party/bev_mmdet3d
-python setup.py build develop
+python setup.py build develop --user
 ```
+
+**NOTE: **You can download the **Docker Image** [here](https://pan.quark.cn/s/784ce862350b).
 
 ### From Source
 

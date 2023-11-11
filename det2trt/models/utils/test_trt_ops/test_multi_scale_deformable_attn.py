@@ -128,17 +128,25 @@ class MultiScaleDeformableAttnTestCase(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True, fp16=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True, fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32(self):
-        self.fp32_case(2e-5)
+        self.fp32_case()
 
     def test_fp16(self):
-        self.fp16_case(0.15)
+        self.fp16_case(0.01)
 
     def test_int8_fp16(self):
-        self.int8_case(0.20)
+        self.int8_fp16_case(0.01)
 
     def test_int8(self):
-        self.int8_case(0.15)
+        self.int8_case(0.01)
 
 
 class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
@@ -191,7 +199,29 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
 
     def createInputs(self):
         f_keys = ["value", "reference_points", "sampling_offsets", "attention_weights"]
-        if self.fp16:
+        if self.int8_fp16:
+            self.inputs_pth_int8 = self.getInputs()
+            self.inputs_pth_fp16 = {
+                key: (val.half() if key in f_keys else val)
+                for key, val in self.inputs_pth_int8.items()
+            }
+            self.inputs_np_fp16 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_fp16.items()
+            }
+            self.inputs_np_int8 = {
+                key: (
+                    val.cpu().numpy()
+                    if key in f_keys
+                    else val.cpu().numpy().astype(np.int32)
+                )
+                for key, val in self.inputs_pth_int8.items()
+            }
+        elif self.fp16:
             inputs_pth = self.getInputs()
             self.inputs_pth_fp16 = {
                 key: (val.half() if key in f_keys else val)
@@ -256,14 +286,22 @@ class MultiScaleDeformableAttnTestCase2(BaseTestCase, unittest.TestCase):
             cost = self.getCost(output_trt, output_pth)
             self.assertLessEqual(cost, delta)
 
+    def int8_fp16_case(self, delta=None):
+        delta = self.delta if delta is None else delta
+        for dic in self.models:
+            output_pth = self.torchForward(dic["model_pth_int8"], int8=True, fp16=True)
+            output_trt, t = self.engineForward(dic["engine_int8"], int8=True, fp16=True)
+            cost = self.getCost(output_trt, output_pth)
+            self.assertLessEqual(cost, delta)
+
     def test_fp32(self):
-        self.fp32_case(2e-5)
+        self.fp32_case()
 
     def test_fp16(self):
-        self.fp16_case(0.15)
+        self.fp16_case(0.01)
 
     def test_int8_fp16(self):
-        self.int8_case(0.15)
+        self.int8_fp16_case(0.01)
 
     def test_int8(self):
-        self.int8_case(0.15)
+        self.int8_case(0.01)

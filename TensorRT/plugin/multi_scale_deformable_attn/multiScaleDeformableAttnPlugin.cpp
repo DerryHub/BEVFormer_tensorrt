@@ -72,8 +72,9 @@ int32_t MultiScaleDeformableAttnPlugin::enqueue(
     const nvinfer1::PluginTensorDesc *inputDesc,
     const nvinfer1::PluginTensorDesc *outputDesc, const void *const *inputs,
     void *const *outputs, void *workspace, cudaStream_t stream) noexcept {
-  float scale_value = inputDesc[0].scale, scale_offset = inputDesc[3].scale,
-        scale_weight = inputDesc[4].scale, scale_out = outputDesc[0].scale;
+  float scale_value = inputDesc[0].scale, scale_ref = inputDesc[2].scale,
+        scale_offset = inputDesc[3].scale, scale_weight = inputDesc[4].scale,
+        scale_out = outputDesc[0].scale;
   Dims value_dims = inputDesc[0].dims;
   const int batch = value_dims.d[0];
   const int spatial_size = value_dims.d[1];
@@ -119,19 +120,18 @@ int32_t MultiScaleDeformableAttnPlugin::enqueue(
     if (data_type_rp == DataType::kHALF) {
       ms_deformable_im2col_cuda_int8<__half2>(
           (int8_4 *)inputs[0], scale_value, (int32_t *)inputs[1],
-          (__half2 *)inputs[2], (int8_t *)inputs[3], scale_offset,
-          (int8_t *)inputs[4], scale_weight, batch, spatial_size, num_heads,
+          (__half2 *)inputs[2], (int8_4 *)inputs[3], scale_offset,
+          (int8_4 *)inputs[4], scale_weight, batch, spatial_size, num_heads,
           channels, num_levels, num_query, num_point, points_per_group,
           (int8_4 *)outputs[0], scale_out, stream);
     } else {
       ms_deformable_im2col_cuda_int8<float>(
           (int8_4 *)inputs[0], scale_value, (int32_t *)inputs[1],
-          (float *)inputs[2], (int8_t *)inputs[3], scale_offset,
-          (int8_t *)inputs[4], scale_weight, batch, spatial_size, num_heads,
+          (float *)inputs[2], (int8_4 *)inputs[3], scale_offset,
+          (int8_4 *)inputs[4], scale_weight, batch, spatial_size, num_heads,
           channels, num_levels, num_query, num_point, points_per_group,
           (int8_4 *)outputs[0], scale_out, stream);
     }
-
     break;
   default:
     return 1;

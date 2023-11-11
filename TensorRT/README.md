@@ -47,10 +47,10 @@
 
 ### Multi-scale Deformable Attention
 
-|           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type | Tensor Format | Test Device |
-| :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-----------: | :---------: |
-| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.3    |    x2.7    |  nv_half  |    kLinear    | RTX 2080Ti  |
-| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.9    |    x2.7    | nv_half2  |    kLinear    | RTX 2080Ti  |
+|           OP Name            | Attributes |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8/FP16 Speed | Half Type | Tensor Format | Test Device |
+| :--------------------------: | :--------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------------: | :-------: | :-----------: | :---------: |
+| MultiScaleDeformableAttnTRT  |     -      | value: T<br />value_spatial_shapes: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x1.3    |      x3.2       |  nv_half  |    kLinear    | RTX 2080Ti  |
+| MultiScaleDeformableAttnTRT2 |     -      | value: T<br />value_spatial_shapes: T<br />value_level_start_index: T<br />sampling_locations: T<br />attention_weights: T | output: T |     x1     |    x2.0    |      x2.7       | nv_half2  |    kLinear    | RTX 2080Ti  |
 
 #### Inputs
 
@@ -76,7 +76,7 @@
 
 * attention_weights: T[float/half/int8]
 
-  The weight of sampling points used when calculate the attention, has shape` [N ,num_queries, num_heads, num_levels * num_points]`.
+  The weight of sampling points used when calculate the attention (before softmax), has shape` [N ,num_queries, num_heads, num_levels * num_points]`.
 
 #### Attributes
 
@@ -90,10 +90,10 @@
 
 ### Modulated Deformable Conv2d
 
-|            OP Name            |                          Attributes                          |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type |     Tensor Format     | Test Device |
-| :---------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-------------------: | :---------: |
-| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.7    |    x3.7    |  nv_half  |    kLinear, kCHW4     | RTX 2080Ti  |
-| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x3.3    |    x3.7    | nv_half2  | kLinear, kCHW2, kCHW4 | RTX 2080Ti  |
+|            OP Name            |                          Attributes                          |                            Inputs                            |  Outputs  | FP32 Speed | FP16 Speed | INT8/FP16 Speed | Half Type |     Tensor Format     | Test Device |
+| :---------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :-------: | :--------: | :--------: | :-------------: | :-------: | :-------------------: | :---------: |
+| ModulatedDeformableConv2dTRT  | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x2.9    |      x3.7       |  nv_half  |    kLinear, kCHW4     | RTX 2080Ti  |
+| ModulatedDeformableConv2dTRT2 | stride: int[2]<br />padding: int[2]<br />dilation: int[2]<br />groups: int<br />deform_groups: int | input: T<br />offset: T<br />mask: T<br />weight: T<br />bias: T (optional) | output: T |     x1     |    x3.5    |      x3.7       | nv_half2  | kLinear, kCHW2, kCHW4 | RTX 2080Ti  |
 
 #### Inputs
 
@@ -149,10 +149,10 @@
 
 ### Rotate
 
-|  OP Name   |     Attributes     |               Inputs                |  Outputs  | FP32 Speed | FP16 Speed | INT8 Speed | Half Type |     Tensor Format     | Test Device |
-| :--------: | :----------------: | :---------------------------------: | :-------: | :--------: | :--------: | :--------: | :-------: | :-------------------: | :---------: |
-| RotateTRT  | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    X1.9    |    X4.4    |  nv_half  |    kLinear, kCHW4     | RTX 2080Ti  |
-| RotateTRT2 | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    x2.5    |    x4.4    | nv_half2  | kLinear, kCHW2, kCHW4 | RTX 2080Ti  |
+|  OP Name   |     Attributes     |               Inputs                |  Outputs  | FP32 Speed | FP16 Speed | INT8/FP16 Speed | Half Type |     Tensor Format     | Test Device |
+| :--------: | :----------------: | :---------------------------------: | :-------: | :--------: | :--------: | :-------------: | :-------: | :-------------------: | :---------: |
+| RotateTRT  | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    X1.8    |      X4.4       |  nv_half  |    kLinear, kCHW4     | RTX 2080Ti  |
+| RotateTRT2 | interpolation: int | img: T<br />angle: T<br />center: T | output: T |     x1     |    x2.2    |      x4.4       | nv_half2  | kLinear, kCHW2, kCHW4 | RTX 2080Ti  |
 
 #### Inputs
 
@@ -247,8 +247,8 @@
 
 | OP Name |               Inputs               |  Outputs  | FP32 Speed NHMA | FP16 Speed NHMA | FP32 Speed FHMA | FP16 Speed FHMA | INT8 Speed FHMA | Half Type | Test Device |
 | :-----: | :--------------------------------: | :-------: | :-------------: | :-------------: | :-------------: | :-------------: | :-------------: | :-------: | :---------: |
-| QKVTRT  | query: T<br />key: T<br />value: T | output: T |       x1        |      X1.9       |      x4.4       |      x5.7       |      x6.9       |  nv_half  | RTX 2080Ti  |
-| QKVTRT2 | query: T<br />key: T<br />value: T | output: T |       x1        |      X2.2       |      x4.4       |      x6.0       |      x6.9       | nv_half2  | RTX 2080Ti  |
+| QKVTRT  | query: T<br />key: T<br />value: T | output: T |       x1        |      X2.0       |      x4.6       |      x6.1       |      x8.2       |  nv_half  | RTX 2080Ti  |
+| QKVTRT2 | query: T<br />key: T<br />value: T | output: T |       x1        |      X2.1       |      x4.6       |      x6.3       |      x8.2       | nv_half2  | RTX 2080Ti  |
 
 #### Inputs
 

@@ -17,11 +17,27 @@ struct int8_4 {
       : x(x), y(y), z(z), w(w) {}
 };
 
+struct uint8_4 {
+  uint8_t x = 0, y = 0, z = 0, w = 0;
+  __device__ uint8_4() {}
+  __device__ uint8_4(const uint8_t &val) : x(val), y(val), z(val), w(val) {}
+  __device__ uint8_4(const uint8_t &x, const uint8_t &y, const uint8_t &z,
+                     const uint8_t &w)
+      : x(x), y(y), z(z), w(w) {}
+};
+
 struct int8_2 {
   int8_t x = 0, y = 0;
   __device__ int8_2() {}
   __device__ int8_2(const int8_t &val) : x(val), y(val) {}
   __device__ int8_2(const int8_t &x, const int8_t &y) : x(x), y(y) {}
+};
+
+struct uint8_2 {
+  uint8_t x = 0, y = 0;
+  __device__ uint8_2() {}
+  __device__ uint8_2(const uint8_t &val) : x(val), y(val) {}
+  __device__ uint8_2(const uint8_t &x, const uint8_t &y) : x(x), y(y) {}
 };
 
 struct int32_4 {

@@ -99,11 +99,6 @@ int32_t QKVPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
   const float scale_v = inputDesc[2].scale;
   const float scale_o = outputDesc[0].scale;
   auto data_type = inputDesc[0].type;
-  //    float time = 0;
-  //    cudaEvent_t start, end;
-  //    cudaEventCreate(&start);
-  //    cudaEventCreate(&end);
-  //    cudaEventRecord(start, stream);
   switch (data_type) {
   case nvinfer1::DataType::kFLOAT:
     if (mFMHA) {
@@ -158,13 +153,6 @@ int32_t QKVPlugin::enqueue(const nvinfer1::PluginTensorDesc *inputDesc,
   default:
     return 1;
   }
-  //    cudaEventRecord(end, stream);
-  //    cudaEventSynchronize(start);
-  //    cudaEventSynchronize(end);
-  //    cudaEventElapsedTime(&time, start, end);
-  //    cudaEventDestroy(start);
-  //    cudaEventDestroy(end);
-  //    printf("\nCPP TIME: %f ms\n", time);
   return 0;
 }
 

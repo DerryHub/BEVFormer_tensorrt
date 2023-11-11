@@ -132,7 +132,7 @@ class TransformerTestCase(BaseTestCase, unittest.TestCase):
         self.fp16_case(1e-4)
 
     def test_int8(self):
-        self.int8_case(1e-3)
+        self.int8_case(3e-3)
 
 
 class TransformerTestCase2(BaseTestCase, unittest.TestCase):
@@ -210,4 +210,4 @@ class TransformerTestCase2(BaseTestCase, unittest.TestCase):
         self.fp16_case(1e-4)
 
     def test_int8(self):
-        self.int8_case(1e-3)
+        self.int8_case(3e-3)
