@@ -751,22 +751,12 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
         assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == value.shape[1]
         assert key_padding_mask is None
 
-        sampling_offsets = self.sampling_offsets(query).view(
-            6, -1, self.num_heads, self.num_levels, self.num_points, 2
-        )
-        attention_weights = self.attention_weights(query).view(
-            6, -1, self.num_heads, self.num_levels * self.num_points
-        )
+        sampling_offsets = self.sampling_offsets(query)
+        attention_weights = self.attention_weights(query)
 
-        attention_weights = attention_weights.softmax(-1)
-
-        attention_weights = attention_weights.view(
-            6, -1, self.num_heads, self.num_levels, self.num_points
-        )
-
-        sampling_offsets = sampling_offsets.flatten(3)
-        attention_weights = attention_weights.flatten(3)
         reference_points = reference_points.reshape(6, -1, 1, 8)
+        sampling_offsets = sampling_offsets.view(*sampling_offsets.shape[:2], self.num_heads, -1)
+        attention_weights = attention_weights.view(*attention_weights.shape[:2], self.num_heads, -1)
         output = self.multi_scale_deformable_attn(
             value, spatial_shapes, reference_points, sampling_offsets, attention_weights
         ).flatten(2)

@@ -446,22 +446,13 @@ class CustomMSDeformableAttentionTRTP(CustomMSDeformableAttentionTRT):
         assert key_padding_mask is None
         value = value.view(1, -1, self.num_heads, self.embed_dims // self.num_heads)
 
-        sampling_offsets = self.sampling_offsets(query).view(
-            1, -1, self.num_heads, self.num_levels, self.num_points, 2
-        )
-        attention_weights = self.attention_weights(query).view(
-            1, -1, self.num_heads, self.num_levels * self.num_points
-        )
-        attention_weights = attention_weights.softmax(-1)
-
-        attention_weights = attention_weights.view(
-            1, -1, self.num_heads, self.num_levels, self.num_points
-        )
+        sampling_offsets = self.sampling_offsets(query)
+        attention_weights = self.attention_weights(query)
 
         if torch.onnx.is_in_onnx_export():
             assert value.is_cuda
-        sampling_offsets = sampling_offsets.flatten(3)
-        attention_weights = attention_weights.flatten(3)
+        sampling_offsets = sampling_offsets.view(*sampling_offsets.shape[:2], self.num_heads, -1)
+        attention_weights = attention_weights.view(*attention_weights.shape[:2], self.num_heads, -1)
         output = self.multi_scale_deformable_attn(
             value,
             spatial_shapes,

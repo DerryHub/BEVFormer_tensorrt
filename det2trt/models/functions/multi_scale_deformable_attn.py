@@ -55,9 +55,10 @@ class _MultiScaleDeformableAttnFunction(Function):
         Returns:
             Tensor: has shape (bs, embed_dims, num_queries)
         """
-        channel = value.shape[3]
+        num_heads, channel = value.shape[2:]
         num_level = value_spatial_shapes.shape[0]
-        bs, num_queries, num_heads, dim = sampling_offsets.shape
+        bs, num_queries = reference_points.shape[:2]
+
         points_per_group = torch.div(
             reference_points.shape[-1], 2, rounding_mode="floor"
         )
@@ -66,10 +67,11 @@ class _MultiScaleDeformableAttnFunction(Function):
             num_queries,
             num_heads,
             num_level,
-            torch.div(dim, num_level * 2 * points_per_group, rounding_mode="floor"),
+            -1,
             points_per_group,
             2,
         )
+        dim = sampling_offsets.shape[4] * num_level * 2 * points_per_group
         offset_normalizer = torch.stack(
             [value_spatial_shapes[..., 1], value_spatial_shapes[..., 0]], -1
         )
@@ -84,6 +86,7 @@ class _MultiScaleDeformableAttnFunction(Function):
             torch.div(dim, num_level * 2, rounding_mode="floor"),
             2,
         )
+        attention_weights = attention_weights.view(-1, num_level*torch.div(dim, num_level * 2, rounding_mode="floor")).softmax(-1)
         attention_weights = attention_weights.view(
             bs,
             num_queries,

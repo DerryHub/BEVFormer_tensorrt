@@ -23,21 +23,40 @@ template <typename T> __forceinline__ __device__ T sign_05(T x) {
 }
 
 template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
-  a = a > 127 ? 127 : a;
-  a = a < -128 ? -128 : a;
-  return int8_t(a + sign_05<T>(a));
+    a = a > 127 ? 127 : a;
+    a = a < -128 ? -128 : a;
+    return int8_t(a + sign_05<T>(a));
 }
 
 template <> __forceinline__ __device__ int8_t T2int8(__half a) {
-  a = __hgt(a, __int2half_rn(127)) ? __int2half_rn(127) : a;
-  a = __hlt(a, __int2half_rn(-128)) ? __int2half_rn(-128) : a;
-  return int8_t(__half2int_rn(a));
+    short temp = __half2short_rn(a);
+    temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
+    temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
+    return static_cast<int8_t>(temp);
+}
+
+template <typename T> __forceinline__ __device__ uint8_t T2uint8(T a) {
+    a = a > 255 ? 255 : a;
+    a = a < 0 ? 0 : a;
+    return uint8_t(a + 0.5);
+}
+
+template <> __forceinline__ __device__ uint8_t T2uint8(__half a) {
+    unsigned short temp = __half2ushort_rn(a);
+    temp = temp > static_cast<short>(255) ? static_cast<short>(255) : temp;
+    return static_cast<uint8_t>(temp);
 }
 
 __forceinline__ __device__ int8_t half2int8(const __half &hval,
                                             const float &scale) {
   __half ret = __hdiv(hval, __float2half(scale));
   return T2int8<__half>(ret);
+}
+
+__forceinline__ __device__ uint8_t half2uint8(const __half &hval,
+                                            const float &scale) {
+    __half ret = __hdiv(hval, __float2half(scale));
+    return T2uint8<__half>(ret);
 }
 
 __forceinline__ __device__ void qmulf(const int8_4 &a, int8_4 &c,
@@ -51,9 +70,10 @@ __forceinline__ __device__ void qmulf(const int8_4 &a, int8_4 &c,
 __forceinline__ __device__ void dp4a(const int32_t *a, const int32_t *b,
                                      int32_t &c) {
 #if __CUDA_ARCH__ >= 610
-  asm("dp4a.s32.s32 %0, %1, %2, %3;" : "+r"(c) : "r"(*a), "r"(*b), "r"(c));
+  asm("dp4a.s32.u32 %0, %1, %2, %3;" : "+r"(c) : "r"(*a), "r"(*b), "r"(c));
 #else
-  auto ap = (int8_4 *)a, bp = (int8_4 *)b;
+  auto ap = (int8_4 *)a;
+  auto bp = (uint8_4 *)b;
 
   c += ap->x * bp->x;
   c += ap->y * bp->y;
@@ -176,12 +196,12 @@ dmcn_im2col_bilinear_int8(const int8_4 *input, const float &scale_i,
   __half2 lhw = __hsub2(hw, hw_low);
   __half2 hhw = __hsub2(__float2half2_rn(1.f), lhw);
 
-  const float scale_area = 1 / 127.f;
-  int8_4 weight = {
-      half2int8(__hmul(__low2half(hhw), __high2half(hhw)), scale_area),
-      half2int8(__hmul(__low2half(hhw), __high2half(lhw)), scale_area),
-      half2int8(__hmul(__low2half(lhw), __high2half(hhw)), scale_area),
-      half2int8(__hmul(__low2half(lhw), __high2half(lhw)), scale_area)};
+  const float scale_area = 1 / 255.f;
+  uint8_4 weight = {
+      half2uint8(__hmul(__low2half(hhw), __high2half(hhw)), scale_area),
+      half2uint8(__hmul(__low2half(hhw), __high2half(lhw)), scale_area),
+      half2uint8(__hmul(__low2half(lhw), __high2half(hhw)), scale_area),
+      half2uint8(__hmul(__low2half(lhw), __high2half(lhw)), scale_area)};
 
   int h_low = static_cast<int>(__low2float(hw_low)),
       w_low = static_cast<int>(__high2float(hw_low)),
@@ -222,7 +242,6 @@ dmcn_im2col_bilinear_int8(const int8_4 *input, const float &scale_i,
   output_temp = 0;
   dp4a((const int32_t *)inps, (const int32_t *)&weight, output_temp);
   output.x = T2int8<float>(output_temp * scale_area);
-  ;
 
   output_temp = 0;
   dp4a((const int32_t *)(inps + 1), (const int32_t *)&weight, output_temp);

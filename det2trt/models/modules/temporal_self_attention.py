@@ -420,8 +420,7 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
             self.num_bev_queue, -1, self.num_heads, self.embed_dims // self.num_heads
         )
 
-        sampling_offsets = self.sampling_offsets(query)
-        sampling_offsets = sampling_offsets.view(
+        sampling_offsets = self.sampling_offsets(query).view(
             1,
             -1,
             self.num_heads,
@@ -431,37 +430,16 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
             2,
         )
         attention_weights = self.attention_weights(query).view(
-            1,
-            -1,
-            self.num_heads,
-            self.num_bev_queue,
-            self.num_levels * self.num_points,
-        )
-        attention_weights = attention_weights.softmax(-1)
-
-        attention_weights = attention_weights.view(
             1, -1, self.num_heads, self.num_bev_queue, self.num_levels, self.num_points,
         )
 
-        attention_weights = (
-            attention_weights.permute(0, 3, 1, 2, 4, 5)
-            .reshape(
-                self.num_bev_queue,
-                -1,
-                self.num_heads,
-                self.num_levels,
-                self.num_points,
-            )
-            .contiguous()
-        )
-        sampling_offsets = sampling_offsets.permute(0, 3, 1, 2, 4, 5, 6).reshape(
-            self.num_bev_queue, -1, self.num_heads, self.num_levels, self.num_points, 2,
-        )
+        attention_weights = attention_weights.permute(0, 3, 1, 2, 4, 5).contiguous()
+        sampling_offsets = sampling_offsets.permute(0, 3, 1, 2, 4, 5, 6).contiguous()
 
         if torch.onnx.is_in_onnx_export():
             assert value.is_cuda
-        sampling_offsets = sampling_offsets.flatten(3)
-        attention_weights = attention_weights.flatten(3)
+        attention_weights = attention_weights.view(*attention_weights.shape[1:3], self.num_heads, -1)
+        sampling_offsets = sampling_offsets.view(*sampling_offsets.shape[1:3], self.num_heads, -1)
         output = self.multi_scale_deformable_attn(
             value, spatial_shapes, reference_points, sampling_offsets, attention_weights
         ).flatten(2)
