@@ -63,13 +63,7 @@ class _MultiScaleDeformableAttnFunction(Function):
             reference_points.shape[-1], 2, rounding_mode="floor"
         )
         sampling_offsets = sampling_offsets.view(
-            bs,
-            num_queries,
-            num_heads,
-            num_level,
-            -1,
-            points_per_group,
-            2,
+            bs, num_queries, num_heads, num_level, -1, points_per_group, 2,
         )
         dim = sampling_offsets.shape[4] * num_level * 2 * points_per_group
         offset_normalizer = torch.stack(
@@ -86,7 +80,9 @@ class _MultiScaleDeformableAttnFunction(Function):
             torch.div(dim, num_level * 2, rounding_mode="floor"),
             2,
         )
-        attention_weights = attention_weights.view(-1, num_level*torch.div(dim, num_level * 2, rounding_mode="floor")).softmax(-1)
+        attention_weights = attention_weights.view(
+            -1, num_level * torch.div(dim, num_level * 2, rounding_mode="floor")
+        ).softmax(-1)
         attention_weights = attention_weights.view(
             bs,
             num_queries,

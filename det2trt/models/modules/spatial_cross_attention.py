@@ -755,8 +755,12 @@ class MSDeformableAttention3DTRTP(MSDeformableAttention3DTRT):
         attention_weights = self.attention_weights(query)
 
         reference_points = reference_points.reshape(6, -1, 1, 8)
-        sampling_offsets = sampling_offsets.view(*sampling_offsets.shape[:2], self.num_heads, -1)
-        attention_weights = attention_weights.view(*attention_weights.shape[:2], self.num_heads, -1)
+        sampling_offsets = sampling_offsets.view(
+            *sampling_offsets.shape[:2], self.num_heads, -1
+        )
+        attention_weights = attention_weights.view(
+            *attention_weights.shape[:2], self.num_heads, -1
+        )
         output = self.multi_scale_deformable_attn(
             value, spatial_shapes, reference_points, sampling_offsets, attention_weights
         ).flatten(2)

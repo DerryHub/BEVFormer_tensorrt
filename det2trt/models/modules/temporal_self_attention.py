@@ -438,8 +438,12 @@ class TemporalSelfAttentionTRTP(TemporalSelfAttentionTRT):
 
         if torch.onnx.is_in_onnx_export():
             assert value.is_cuda
-        attention_weights = attention_weights.view(*attention_weights.shape[1:3], self.num_heads, -1)
-        sampling_offsets = sampling_offsets.view(*sampling_offsets.shape[1:3], self.num_heads, -1)
+        attention_weights = attention_weights.view(
+            *attention_weights.shape[1:3], self.num_heads, -1
+        )
+        sampling_offsets = sampling_offsets.view(
+            *sampling_offsets.shape[1:3], self.num_heads, -1
+        )
         output = self.multi_scale_deformable_attn(
             value, spatial_shapes, reference_points, sampling_offsets, attention_weights
         ).flatten(2)

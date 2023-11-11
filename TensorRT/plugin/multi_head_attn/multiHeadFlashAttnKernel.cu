@@ -935,10 +935,10 @@ template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
 }
 
 template <> __forceinline__ __device__ int8_t T2int8(__half a) {
-    short temp = __half2short_rn(a);
-    temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
-    temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
-    return static_cast<int8_t>(temp);
+  short temp = __half2short_rn(a);
+  temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
+  temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
+  return static_cast<int8_t>(temp);
 }
 
 template <typename T> __forceinline__ __device__ uint8_t T2uint8(T a) {
@@ -948,9 +948,9 @@ template <typename T> __forceinline__ __device__ uint8_t T2uint8(T a) {
 }
 
 template <> __forceinline__ __device__ uint8_t T2uint8(__half a) {
-    unsigned short temp = __half2ushort_rn(a);
-    temp = temp > static_cast<short>(255) ? static_cast<short>(255) : temp;
-    return static_cast<uint8_t>(temp);
+  unsigned short temp = __half2ushort_rn(a);
+  temp = temp > static_cast<short>(255) ? static_cast<short>(255) : temp;
+  return static_cast<uint8_t>(temp);
 }
 
 #if __CUDA_ARCH__ >= 800
@@ -1930,10 +1930,10 @@ int qkv_flash(const T *query, const T *key, const T *value, T *output,
     exit(1);                                                                   \
   }
 
-//  if (q_len % 128 == 0 && kv_len % 128 == 0) {
-//    HEAD_DEFINE(128)
-//  } else
-      if (q_len % 64 == 0 && kv_len % 64 == 0) {
+  //  if (q_len % 128 == 0 && kv_len % 128 == 0) {
+  //    HEAD_DEFINE(128)
+  //  } else
+  if (q_len % 64 == 0 && kv_len % 64 == 0) {
     HEAD_DEFINE(64)
   } else {
     printf("Do not support q_len=%d, kv_len=%d\n", q_len, kv_len);
@@ -1963,10 +1963,10 @@ int qkv_flash(const __half2 *query, const __half2 *key, const __half2 *value,
     exit(1);                                                                   \
   }
 
-//  if (q_len % 128 == 0 && kv_len % 128 == 0) {
-//    HEAD_DEFINE(128)
-//  } else
-      if (q_len % 64 == 0 && kv_len % 64 == 0) {
+  //  if (q_len % 128 == 0 && kv_len % 128 == 0) {
+  //    HEAD_DEFINE(128)
+  //  } else
+  if (q_len % 64 == 0 && kv_len % 64 == 0) {
     HEAD_DEFINE(64)
   } else {
     printf("Do not support q_len=%d, kv_len=%d\n", q_len, kv_len);
@@ -1999,10 +1999,10 @@ int qkv_flash_int8(const int8_4 *query, const float &scale_q, const int8_4 *key,
     exit(1);                                                                   \
   }
 
-//  if (q_len % 128 == 0 && kv_len % 128 == 0) {
-//    HEAD_DEFINE_INT8(128)
-//  } else
-      if (q_len % 64 == 0 && kv_len % 64 == 0) {
+  //  if (q_len % 128 == 0 && kv_len % 128 == 0) {
+  //    HEAD_DEFINE_INT8(128)
+  //  } else
+  if (q_len % 64 == 0 && kv_len % 64 == 0) {
     HEAD_DEFINE_INT8(64)
   } else {
     printf("Do not support q_len=%d, kv_len=%d\n", q_len, kv_len);

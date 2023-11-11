@@ -23,28 +23,28 @@ template <typename T> __forceinline__ __device__ T sign_05(T x) {
 }
 
 template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
-    a = a > 127 ? 127 : a;
-    a = a < -128 ? -128 : a;
-    return int8_t(a + sign_05<T>(a));
+  a = a > 127 ? 127 : a;
+  a = a < -128 ? -128 : a;
+  return int8_t(a + sign_05<T>(a));
 }
 
 template <> __forceinline__ __device__ int8_t T2int8(__half a) {
-    short temp = __half2short_rn(a);
-    temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
-    temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
-    return static_cast<int8_t>(temp);
+  short temp = __half2short_rn(a);
+  temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
+  temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
+  return static_cast<int8_t>(temp);
 }
 
 template <typename T> __forceinline__ __device__ uint8_t T2uint8(T a) {
-    a = a > 255 ? 255 : a;
-    a = a < 0 ? 0 : a;
-    return uint8_t(a + 0.5);
+  a = a > 255 ? 255 : a;
+  a = a < 0 ? 0 : a;
+  return uint8_t(a + 0.5);
 }
 
 template <> __forceinline__ __device__ uint8_t T2uint8(__half a) {
-    unsigned short temp = __half2ushort_rn(a);
-    temp = temp > static_cast<short>(255) ? static_cast<short>(255) : temp;
-    return static_cast<uint8_t>(temp);
+  unsigned short temp = __half2ushort_rn(a);
+  temp = temp > static_cast<short>(255) ? static_cast<short>(255) : temp;
+  return static_cast<uint8_t>(temp);
 }
 
 __forceinline__ __device__ int8_t half2int8(const __half &hval,
@@ -54,9 +54,9 @@ __forceinline__ __device__ int8_t half2int8(const __half &hval,
 }
 
 __forceinline__ __device__ uint8_t half2uint8(const __half &hval,
-                                            const float &scale) {
-    __half ret = __hdiv(hval, __float2half(scale));
-    return T2uint8<__half>(ret);
+                                              const float &scale) {
+  __half ret = __hdiv(hval, __float2half(scale));
+  return T2uint8<__half>(ret);
 }
 
 __forceinline__ __device__ void qmulf(const int8_4 &a, int8_4 &c,

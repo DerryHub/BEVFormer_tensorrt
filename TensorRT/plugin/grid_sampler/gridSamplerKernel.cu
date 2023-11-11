@@ -35,10 +35,10 @@ template <typename T> __forceinline__ __device__ int8_t T2int8(T a) {
 }
 
 template <> __forceinline__ __device__ int8_t T2int8(__half a) {
-    short temp = __half2short_rn(a);
-    temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
-    temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
-    return static_cast<int8_t>(temp);
+  short temp = __half2short_rn(a);
+  temp = temp > static_cast<short>(127) ? static_cast<short>(127) : temp;
+  temp = temp < static_cast<short>(-128) ? static_cast<short>(-128) : temp;
+  return static_cast<int8_t>(temp);
 }
 
 __forceinline__ __device__ int8_t half2int8(const __half &hval,
