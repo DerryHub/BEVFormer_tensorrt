@@ -184,7 +184,7 @@ cd /workspace/BEVFormer_tensorrt/third_party/bev_mmdet3d
 python setup.py build develop --user
 ```
 
-**NOTE:** You can download the **Docker Image** [here](https://pan.quark.cn/s/784ce862350b).
+**NOTE:** You can download the **Docker Image** [HERE](https://pan.baidu.com/s/1dPR6kvgpUoKow51870KNug?pwd=6xkq).
 
 ### From Source
 
